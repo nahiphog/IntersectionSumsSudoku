@@ -39,7 +39,7 @@ After digging completes, a second worker automatically builds a walkthrough usin
 
 Use First / Previous / Next / Last, the step slider, or the step selector to inspect each move. Before/After views show candidates, the clue or pattern cells, placements, and removed candidates. Clue explanations use short factorizations, hidden-pair descriptions, and forced cell values. Detailed candidate changes are collapsed by default. Each step has an explanation and explicit changes; clue steps include example valid combinations. The technique table counts steps and links to the first use of each technique. The interface follows the navigation/candidate/explanation pattern in [SquishdokuMaker](https://github.com/nahiphog/SquishdokuMaker/blob/main/index.html), implemented here for 9×9 intersection constraints.
 
-Logic-only generated puzzles pass the same solver with search disabled. For puzzles generated with backtracking allowed, if logic stalls, the backtracking option searches the current candidate state against all remaining clues. Each resulting placement is explicitly labeled **Backtracking (search)**. Uncheck that option to see where the logical path stops. Cancel solving, generating again, or changing modes discards obsolete work. Classic Sudoku uniqueness deductions are excluded because variant uniqueness does not justify those assumptions. No classic difficulty score is presented as a rating for this variant.
+Logic-only generated puzzles pass the same solver with search disabled. For puzzles generated with backtracking allowed, if logic stalls, the backtracking option searches the current candidate state against all remaining clues. Each resulting placement is explicitly labeled **Backtracking (search)**. Uncheck that option to see where the logical path stops. Cancel solving, generating again, or changing modes discards obsolete work. Classic Sudoku uniqueness deductions are excluded because variant uniqueness does not justify those assumptions. The variant difficulty rating uses sudokUI technique scores and level thresholds, adding 10 points per intersection sum/product or combined sum equation step. The technique table shows points per use and totals. Search-assisted and stalled walkthroughs show only a logical subtotal, without a completed logical difficulty level.
 
 Run the site with `npm run dev`; opening `index.html` directly with `file://` cannot run the TypeScript modules and workers. Difficulty grading and editable solving remain future work. Upstream catalog entries marked unimplemented remain unimplemented; all existing implementations are included.
 
@@ -51,7 +51,7 @@ The `.github/workflows/pages.yml` workflow installs dependencies with `npm ci` f
 
 The workflow follows the [Vite GitHub Pages deployment guide](https://vite.dev/guide/static-deploy#github-pages).
 
-The dug and walkthrough grids use twice the source-grid width on desktop, with enlarged clues and candidates. On narrow screens they fit the available width.
+The dug grid uses twice the source-grid width on desktop. The walkthrough uses the original smaller grid, with explanations to its right. On narrow screens the explanation stacks below the grid.
 
 ## License and provenance
 
