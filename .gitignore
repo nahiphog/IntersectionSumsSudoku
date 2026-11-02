@@ -1,0 +1,6 @@
+node_modules/
+dist/
+.upstream/
+*.zip
+.sites-local/
+.openai/
