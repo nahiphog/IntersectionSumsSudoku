@@ -35,7 +35,7 @@ describe('variant uniqueness and digging', () => {
       const random = seeded();
       const initial = generatePuzzle(random, mode);
       const clues = [...initial.clues];
-      const result = digPuzzle(mode, () => {}, random, initial, diggingMode);
+      const result = digPuzzle(mode, () => {}, random, initial, diggingMode, false);
       expect(initial.clues).toEqual(clues);
       expect(result.clues).toEqual(intersectionClues(result.solution, mode));
       expect(result.dugClues.filter(c => c !== null).length).toBeLessThan(81);
@@ -63,3 +63,15 @@ describe('variant uniqueness and digging', () => {
     }, 600000);
   }
 });
+
+for (const diggingMode of ['single','dual'] as DiggingMode[]) it('defaults to uniqueness-only digging with backtracking allowed: '+diggingMode, () => {
+  const p = digPuzzle('product',()=>{},seeded(),undefined,diggingMode);
+  const solver = new VariantSolver(p.dugClues,'product',p.solution);
+  expect(solver.countSolutions()).toBe(1);
+  for (const group of diggingGroups(diggingMode)) {
+    if(p.dugClues[group[0]] === null) continue;
+    const active=Array(81).fill(true);group.forEach(c=>active[c]=false);
+    expect(solver.countSolutions(active)).toBe(2);
+  }
+  if(diggingMode==='dual') p.dugClues.forEach((c,i)=>expect(c===null).toBe(p.dugClues[80-i]===null));
+},120000);

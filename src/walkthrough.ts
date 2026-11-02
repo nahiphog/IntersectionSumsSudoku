@@ -11,7 +11,7 @@ export function mountWalkthrough(host: HTMLElement) {
     <p class="walk-note">Uses sudokUI techniques and the remaining sum/product clues. Classic uniqueness techniques are excluded. Search-assisted steps are labeled explicitly.</p>
     <div class="walk-content" hidden>
       <div class="walk-layout"><article class="board-panel"><div class="panel-heading"><h3 data-display="counter"></h3><label>View <select data-option="view"><option value="after">After step</option><option value="before">Before step</option></select></label></div><div class="grid walk-grid" role="table" aria-label="Solver candidates and placements"></div><p class="walk-legend"><span>Blue: pattern / clue</span><span>Green: placement</span><span>Red ×: removed candidate</span></p></article>
-      <div class="walk-detail"><span class="pill" data-display="kind"></span><h3 data-display="technique"></h3><p data-display="description"></p><p data-display="effects"></p><details class="walk-combinations" hidden><summary>Valid neighbouring combinations</summary><p data-display="combination-order"></p><ul data-display="combinations"></ul></details></div></div>
+      <div class="walk-detail"><span class="pill" data-display="kind"></span><h3 data-display="technique"></h3><p data-display="description"></p><details class="walk-effects"><summary>Candidate changes</summary><p data-display="effects"></p></details><details class="walk-combinations" hidden><summary>Valid neighbouring combinations</summary><p data-display="combination-order"></p><ul data-display="combinations"></ul></details></div></div>
       <div class="walk-controls"><button class="walk-button" data-action="first">First</button><button class="walk-button" data-action="previous">Previous</button><label class="walk-slider">Step <input type="range" min="0" value="0" max="0" aria-label="Walkthrough step"></label><button class="walk-button" data-action="next">Next</button><button class="walk-button" data-action="last">Last</button></div>
       <label class="walk-jump">Jump to step <select aria-label="Jump to solver step"></select></label>
       <details class="walk-summary"><summary>Techniques used</summary><table><thead><tr><th scope="col">Technique</th><th scope="col">Steps</th></tr></thead><tbody></tbody></table></details>
@@ -141,6 +141,6 @@ export function mountWalkthrough(host: HTMLElement) {
   view.addEventListener('change', render);
   return {
     reset() { clues = undefined; stop(); walk = undefined; index = 0; content.hidden = true; status.textContent = 'Generate a dug puzzle to begin.'; },
-    load(nextClues: (number | null)[], nextMode: ClueMode) { clues = [...nextClues]; mode = nextMode; start(); },
+    load(nextClues: (number | null)[], nextMode: ClueMode, allowSearch = true) { clues = [...nextClues]; mode = nextMode; searchInput.checked = allowSearch; start(); },
   };
 }

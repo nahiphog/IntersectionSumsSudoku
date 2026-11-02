@@ -2,6 +2,13 @@ import { generateFullGrid } from './vendor/sudokui/engine/generator';
 
 export type ClueMode = 'sum' | 'product';
 
+export function serializeSolution(solution: readonly number[]): string {
+  if (solution.length !== 81 || solution.some(d => !Number.isInteger(d) || d < 1 || d > 9)) {
+    throw new Error('Expected 81 completed Sudoku digits.');
+  }
+  return solution.join('');
+}
+
 /** Row-major export: empty cells become zero; clue values stay intact. */
 export function serializeClues(clues: readonly (number | null)[]): string {
   if (clues.length !== 81) throw new Error('Expected 81 clue cells.');

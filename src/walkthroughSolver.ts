@@ -71,6 +71,7 @@ export function findConstraintStep(grid: Grid, solver: VariantSolver, mode: Clue
     const eliminations = neighbours.flatMap((neighbour, j) => grid.values[neighbour] ? []
       : digitsOf(grid.cands[neighbour] & ~support[j]).map(digit => ({ cell: neighbour, digit })));
     const locks: string[] = [];
+    const name = (c: number) => cellName(c).toUpperCase();
     for (const [unitIndex, unit] of UNITS.entries()) {
       const positions = neighbours.flatMap((c, j) => unit.includes(c) ? [j] : []);
       if (!positions.length) continue;
@@ -79,8 +80,8 @@ export function findConstraintStep(grid: Grid, solver: VariantSolver, mode: Clue
       const locked = mandatory.filter(digit => unit.some(c => !neighbours.includes(c)
         && !grid.values[c] && (grid.cands[c] & bit(digit))));
       if (!locked.length) continue;
-      const unitName = unitIndex < 9 ? `row ${unitIndex + 1}` : unitIndex < 18 ? `column ${unitIndex - 8}` : `box ${unitIndex - 17}`;
-      locks.push(`The neighbouring cells in ${unitName} must contain ${locked.join(', ')} in every valid combination. These digits cannot appear in the other cells of that ${unitName}, including the clue cell when it belongs to that unit.`);
+      const unitName = unitIndex < 9 ? `Row ${unitIndex + 1}` : unitIndex < 18 ? `Column ${unitIndex - 8}` : `Box ${unitIndex - 17}`;
+      locks.push(`Other cells in ${unitName} cannot be ${locked.join(' or ')}.`);
       for (const cell of unit) {
         if (neighbours.includes(cell) || grid.values[cell]) continue;
         for (const digit of locked) if ((grid.cands[cell] & bit(digit))
@@ -89,18 +90,24 @@ export function findConstraintStep(grid: Grid, solver: VariantSolver, mode: Clue
     }
     if (!eliminations.length) continue;
     const target = allowed[0].reduce((value, mask) => mode === 'sum' ? value + digitsOf(mask)[0] : value * digitsOf(mask)[0], mode === 'sum' ? 0 : 1);
-    const changes = neighbours.flatMap(neighbour => {
-      const removed = eliminations.filter(e => e.cell === neighbour).map(e => e.digit);
-      return removed.length ? [`${cellName(neighbour)} cannot be ${removed.join(', ')}`] : [];
-    });
     const digitSets = [...new Set(allowed.map(tuple => tuple.map(mask => digitsOf(mask)[0]).sort((a, b) => a - b).join(', ')))];
-    const must = digitSets.length === 1 ? `The neighbours must be (${digitSets[0]}) in some order. ` : '';
+    const symbol = mode === 'sum' ? ' + ' : ' × ';
+    const forced = neighbours.flatMap((c, j) => !grid.values[c] && digitsOf(support[j]).length === 1
+      ? [name(c) + ' must be ' + digitsOf(support[j])[0]] : []);
+    const pair = forced.length === 0 && neighbours.length === 2 && digitSets.length === 1
+      && new Set(digitSets[0].split(', ')).size === 2
+      && UNITS.some(unit => neighbours.every(c => unit.includes(c)));
+    const fact = digitSets.length === 1
+      ? target + ' = ' + digitSets[0].split(', ').join(symbol) + '.'
+      : target + ': possible neighbour groups are ' + (digitSets.length <= 4
+        ? digitSets.map(set => '(' + set + ')').join(' or ')
+        : neighbours.map((c,j) => name(c) + ' ∈ {' + digitsOf(support[j]).join(', ') + '}').join('; ')) + '.';
+    const deduction = pair ? 'Hidden pair (' + digitSets[0] + ') in ' + neighbours.map(name).join(' and ') + '.'
+      : forced.length ? forced.join('; ') + '.'
+      : digitSets.length === 1 ? neighbours.map(name).join(', ') + ' contain these digits in some order.' : '';
     return {
       technique: mode === 'sum' ? 'Intersection sum' : 'Intersection product', kind: 'constraint',
-      description: `The clue at ${cellName(cell)} requires the ${mode} of ${neighbours.map(cellName).join(', ')} to equal ${target}. `
-        + `Exactly ${allowed.length} ordered combination(s) match the ${mode}, current candidates, and Sudoku restrictions between these neighbours. `
-        + must + (changes.length ? `Neighbour candidate reductions: ${changes.join('; ')}. ` : '')
-        + locks.join(' ') + ' The clue cell itself does not contribute to the clue value.',
+      description: [fact, deduction, ...(forced.length ? [] : locks)].filter(Boolean).join(' '),
       placements: [], eliminations, related: [...new Set([cell, ...neighbours, ...eliminations.map(e => e.cell)])], clueCell: cell,
       neighbourOrder: neighbours, combinationCount: allowed.length,
       combinations: allowed.slice(0, 12).map(tuple => tuple.map(mask => digitsOf(mask)[0])),

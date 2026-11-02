@@ -1,5 +1,5 @@
 import './style.css';
-import { intersectionClues, orthogonalNeighbours, serializeClues, type ClueMode, type IntersectionPuzzle } from './puzzle';
+import { intersectionClues, orthogonalNeighbours, serializeClues, serializeSolution, type ClueMode, type IntersectionPuzzle } from './puzzle';
 import type { DugPuzzle, DigProgress, DiggingMode } from './digging';
 import { mountWalkthrough } from './walkthrough';
 
@@ -11,15 +11,15 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
   <main>
     <section class="intro">
       <div><p class="eyebrow">A DIFFERENT WAY TO SEE SUDOKU</p><h1>Every neighbour counts.</h1><p class="lead">A completed grid. Two ways to connect it.<br>Explore Intersection Sums/Products Sudoku.</p></div>
-      <div class="generator-controls"><fieldset class="mode-toggle"><legend>Clue operation</legend><label><input type="radio" name="mode" value="sum" checked><span>Sum</span></label><label><input type="radio" name="mode" value="product"><span>Product</span></label></fieldset><fieldset class="mode-toggle"><legend>Digging algorithm</legend><label><input type="radio" name="digging" value="single" checked><span>Single</span></label><label><input type="radio" name="digging" value="dual"><span>Dual</span></label></fieldset><button id="generate" class="generate"><span aria-hidden="true">↻</span> Generate</button></div>
+      <div class="generator-controls"><fieldset class="mode-toggle"><legend>Clue operation</legend><label><input type="radio" name="mode" value="sum" checked><span>Sum</span></label><label><input type="radio" name="mode" value="product"><span>Product</span></label></fieldset><fieldset class="mode-toggle"><legend>Digging algorithm</legend><label><input type="radio" name="digging" value="single" checked><span>Single</span></label><label><input type="radio" name="digging" value="dual"><span>Dual</span></label></fieldset><label class="generation-search"><input id="allow-backtracking" type="checkbox" checked> Allow backtracking</label><button id="generate" class="generate"><span aria-hidden="true">↻</span> Generate</button></div>
     </section>
     <section class="rule-strip" aria-label="Puzzle rules"><span class="rule-label">THE RULES</span><p id="rules"></p><div class="rule-cross" aria-hidden="true"><span></span><span>↑</span><span></span><span>←</span><span id="operation-symbol">Σ</span><span>→</span><span></span><span>↓</span><span></span></div></section>
     <div class="workspace-bar"><span><i class="status-dot"></i> GENERATION WORKSPACE</span><p id="status" role="status" aria-live="polite">Ready when you are</p></div>
     <section class="boards" aria-label="Sudoku generator">
-      <article class="board-panel"><div class="panel-heading"><div><span class="step">01 / SOURCE</span><h2>Completed grid</h2></div><span class="pill">9 × 9</span></div><div id="solution" class="grid" role="table" aria-label="Completed Sudoku grid"></div><p class="board-caption"><span class="caption-line"></span> Every row, column and box contains 1–9.</p></article>
-      <article class="board-panel puzzle-panel"><div class="panel-heading"><div><span class="step">02 / TRANSFORMATION</span><h2 id="puzzle-title">Intersection sums</h2></div><span class="pill green">81 clues</span></div><div id="puzzle" class="grid clue-grid" role="table" aria-label="Empty Intersection Sums puzzle"></div><p class="board-caption"><span class="caption-corner">Σ</span> Small clues. All 81 digits left for you to discover.</p></article>
+      <article class="board-panel"><div class="panel-heading"><div><span class="step">01 / SOURCE</span><h2>Completed grid</h2></div><span class="pill">9 × 9</span></div><button id="copy-solution" class="copy-grid" disabled>Copy completed grid</button><span id="copy-solution-status" role="status"></span><div id="solution" class="grid" role="table" aria-label="Completed Sudoku grid"></div><p class="board-caption"><span class="caption-line"></span> Every row, column and box contains 1–9.</p></article>
+      <article class="board-panel puzzle-panel"><div class="panel-heading"><div><span class="step">02 / TRANSFORMATION</span><h2 id="puzzle-title">Intersection sums</h2></div><span class="pill green">81 clues</span></div><button id="copy-transformed" class="copy-grid" disabled>Copy sums/products grid</button><span id="copy-transformed-status" role="status"></span><div id="puzzle" class="grid clue-grid" role="table" aria-label="Empty Intersection Sums puzzle"></div><p class="board-caption"><span class="caption-corner">Σ</span> Small clues. All 81 digits left for you to discover.</p></article>
     </section>
-    <section class="dig-section" aria-label="Dug puzzle generation"><article class="board-panel"><div class="panel-heading"><div><span class="step">03 / DIGGING</span><h2>Dug puzzle</h2></div><span id="given-count" class="pill green">— givens</span></div><div id="dug" class="grid clue-grid" role="table" aria-label="Dug puzzle"></div><p class="board-caption">Clues preserve uniqueness and a complete logical solution.</p></article><div class="dig-info"><h2>Find the essentials.</h2><p>Clues are tested in a random order. Each removal is kept only if backtracking confirms exactly one solution and the logical solver finishes using sudokUI techniques and sum/product constraints without backtracking.</p><p id="dig-status" role="status">Generate to begin digging.</p><p>Generation time: <strong id="elapsed">—</strong></p><progress id="dig-progress" max="81" value="0" aria-label="Clues tested"></progress><button id="cancel" hidden>Cancel generation</button><button id="copy-dug" disabled>Copy dug puzzle</button><p id="copy-status" role="status"></p><textarea id="copy-fallback" aria-label="Dug puzzle comma-separated clues" readonly hidden></textarea><p>Dual digging removes opposite cells together: RrCc and R(10−r)C(10−c). The centre cell is tested once.</p><p class="dig-note">Fast digging keeps clues whenever its logical techniques stall. Puzzles may have more clues, but every removal preserves uniqueness and a complete solution without backtracking.</p></div></section>
+    <section class="dig-section" aria-label="Dug puzzle generation"><article class="board-panel"><div class="panel-heading"><div><span class="step">03 / DIGGING</span><h2>Dug puzzle</h2></div><span id="given-count" class="pill green">— givens</span></div><div id="dug" class="grid clue-grid" role="table" aria-label="Dug puzzle"></div><p class="board-caption">Every generated puzzle has exactly one solution.</p></article><div class="dig-info"><h2>Find the essentials.</h2><p>Clues are tested in a random order. Every removal must preserve exactly one solution. Turn off Allow backtracking to also require a complete logical solve.</p><p id="dig-status" role="status">Generate to begin digging.</p><p>Generation time: <strong id="elapsed">—</strong></p><progress id="dig-progress" max="81" value="0" aria-label="Clues tested"></progress><button id="cancel" hidden>Cancel generation</button><button id="copy-dug" disabled>Copy dug puzzle</button><p id="copy-status" role="status"></p><textarea id="copy-fallback" aria-label="Dug puzzle comma-separated clues" readonly hidden></textarea><p>Dual digging removes opposite cells together: RrCc and R(10−r)C(10−c). The centre cell is tested once.</p><p class="dig-note">Backtracking is allowed by default; the puzzle may need search. With it turned off, fast digging retains clues whenever logic stalls.</p></div></section>
     <section class="inspector" aria-label="Clue explanation"><span class="inspector-icon" aria-hidden="true">＋</span><div><h3>Follow a clue</h3><p id="explanation" aria-live="polite">Generate a puzzle, then select a sum to explore its neighbours.</p></div><span class="inspector-note">UP · DOWN · LEFT · RIGHT</span></section>
     <section id="walkthrough" class="walkthrough" aria-label="Solution walkthrough"></section>
     <footer><span>INTERSECTION SUMS/PRODUCTS SUDOKU</span><span>Classic solving engine from <a href="https://github.com/AImenes/sudokUI" target="_blank" rel="noreferrer">sudokUI ↗</a> · <a href="./LICENSE.txt">GPL-3.0</a></span></footer>
@@ -28,6 +28,7 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
 let puzzle: IntersectionPuzzle | undefined;
 let mode: ClueMode = 'sum';
 let diggingMode: DiggingMode = 'single';
+let allowBacktracking = true;
 let generation = 0;
 let activeCell = -1;
 let dugClues: (number | null)[] | undefined;
@@ -148,12 +149,16 @@ function startDigging(initial?: IntersectionPuzzle): void {
   generation++;
   activeCell = -1;
   dugClues = undefined;
+  for (const id of ['solution', 'transformed']) {
+    document.querySelector<HTMLButtonElement>('#copy-' + id)!.disabled = true;
+    document.querySelector('#copy-' + id + '-status')!.textContent = '';
+  }
   document.querySelector<HTMLButtonElement>('#copy-dug')!.disabled = true;
   document.querySelector('#copy-status')!.textContent = '';
   document.querySelector<HTMLTextAreaElement>('#copy-fallback')!.hidden = true;
   renderGrid(dugElement, true, Array(81).fill(null));
   document.querySelector('#given-count')!.textContent = '— givens';
-  document.querySelector('#dig-status')!.textContent = 'Checking the full puzzle for uniqueness and logical solvability…';
+  document.querySelector('#dig-status')!.textContent = allowBacktracking ? 'Checking the full puzzle for uniqueness…' : 'Checking the full puzzle for uniqueness and logical solvability…';
   document.querySelector<HTMLProgressElement>('#dig-progress')!.value = 0;
   document.querySelector<HTMLProgressElement>('#dig-progress')!.max = diggingMode === 'dual' ? 41 : 81;
   document.querySelector<HTMLButtonElement>('#generate')!.disabled = true;
@@ -177,13 +182,15 @@ function startDigging(initial?: IntersectionPuzzle): void {
     if (data.type === 'progress') {
       if (data.puzzle) {
         puzzle = data.puzzle;
+        document.querySelector<HTMLButtonElement>('#copy-solution')!.disabled = false;
+        document.querySelector<HTMLButtonElement>('#copy-transformed')!.disabled = false;
         renderGrid(solutionElement, false);
         renderGrid(puzzleElement, true);
         updateModeText();
       }
       const { attempt, tested, givens, phase, pass, total } = data.progress;
       document.querySelector('#dig-status')!.textContent = phase === 'checking'
-        ? `Attempt ${attempt}: checking all 81 clues for uniqueness and logical solvability…`
+        ? `Attempt ${attempt}: checking all 81 clues for uniqueness${allowBacktracking ? '' : ' and logical solvability'}…`
         : `Attempt ${attempt}: pass ${pass}: tested ${tested} / ${total} ${diggingMode === 'dual' ? 'pairs/centre' : 'cells'} · ${givens} remaining`;
       document.querySelector<HTMLProgressElement>('#dig-progress')!.value = tested;
     } else if (data.type === 'complete') {
@@ -193,13 +200,13 @@ function startDigging(initial?: IntersectionPuzzle): void {
       document.querySelector<HTMLProgressElement>('#dig-progress')!.value = diggingMode === 'dual' ? 41 : 81;
       renderGrid(dugElement, true, dugClues);
       document.querySelector('#given-count')!.textContent = `${dugClues.filter(clue => clue !== null).length} givens`;
-      document.querySelector('#dig-status')!.textContent = `Complete · unique solution · solvable without backtracking · ${data.result.attempts} attempt(s)`;
+      document.querySelector('#dig-status')!.textContent = `Complete · unique solution · ${allowBacktracking ? 'backtracking allowed' : 'solvable without backtracking'} · ${data.result.attempts} attempt(s)`;
       updateTime();
       stopWorker();
-      walkthrough.load(dugClues, mode);
+      walkthrough.load(dugClues, mode, allowBacktracking);
     }
   };
-  current.postMessage({ mode, initial, diggingMode });
+  current.postMessage({ mode, initial, diggingMode, allowBacktracking });
 }
 
 document.querySelector<HTMLButtonElement>('#generate')!.addEventListener('click', () => startDigging());
@@ -219,20 +226,26 @@ updateModeText();
     if (puzzle || worker) startDigging(puzzle);
   });
 });
-document.querySelector<HTMLButtonElement>('#copy-dug')!.addEventListener('click', async () => {
-  if (!dugClues) return;
-  const currentClues = dugClues;
-  const text = serializeClues(currentClues);
-  try {
-    await navigator.clipboard.writeText(text);
-    if (dugClues === currentClues) document.querySelector('#copy-status')!.textContent = 'Copied 81 comma-separated clues.';
-  } catch {
-    if (dugClues !== currentClues) return;
-    const fallback = document.querySelector<HTMLTextAreaElement>('#copy-fallback')!;
-    fallback.value = text;
-    fallback.hidden = false;
-    fallback.focus();
-    fallback.select();
-    document.querySelector('#copy-status')!.textContent = 'Clipboard access was unavailable. Copy the selected text.';
-  }
+
+document.querySelector<HTMLInputElement>('#allow-backtracking')!.addEventListener('change', event => {
+  allowBacktracking = (event.target as HTMLInputElement).checked;
+  if (puzzle || worker) startDigging(puzzle);
 });
+function bindCopy(id: string, statusId: string, getText: () => string | undefined, message: string) {
+  document.querySelector<HTMLButtonElement>(id)!.addEventListener('click', async () => {
+    const text = getText();
+    if (text === undefined) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      if (getText() === text) document.querySelector(statusId)!.textContent = message;
+    } catch {
+      if (getText() !== text) return;
+      const fallback = document.querySelector<HTMLTextAreaElement>('#copy-fallback')!;
+      fallback.value = text; fallback.hidden = false; fallback.focus(); fallback.select();
+      document.querySelector(statusId)!.textContent = 'Clipboard unavailable. Copy the selected text.';
+    }
+  });
+}
+bindCopy('#copy-dug', '#copy-status', () => dugClues && serializeClues(dugClues), 'Copied 81 comma-separated clues.');
+bindCopy('#copy-solution', '#copy-solution-status', () => puzzle && serializeSolution(puzzle.solution), 'Copied 81 digits.');
+bindCopy('#copy-transformed', '#copy-transformed-status', () => puzzle && serializeClues(puzzle.clues), 'Copied 81 comma-separated clues.');
