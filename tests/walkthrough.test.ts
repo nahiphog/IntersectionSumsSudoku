@@ -41,13 +41,14 @@ describe('explained variant solver', () => {
     clues.forEach((clue, cell) => { if (clue !== null) expect(clue).toBe(puzzle.clues[cell]); });
     verify(solveWalkthrough(clues, 'sum'), puzzle.solution);
   }, 120000);
-  it('explains only neighbours, and rejects impossible clues', () => {
+  it('explains neighbour combinations and locked digits, and rejects impossible clues', () => {
     const clues: (number | null)[] = Array(81).fill(null); clues[0] = 3;
     const grid = emptyGrid();
     const step = findConstraintStep(grid, new VariantSolver(clues, 'sum'), 'sum')!;
     expect(step.neighbourOrder).toEqual([1, 9]);
     expect(step.combinations).toEqual([[1, 2], [2, 1]]);
-    expect(step.eliminations.every(e => [1, 9].includes(e.cell) && e.digit > 2)).toBe(true);
+    expect(step.eliminations.filter(e => [1, 9].includes(e.cell)).every(e => e.digit > 2)).toBe(true);
+    expect(step.eliminations).toContainEqual({cell:0,digit:1});
     clues[0] = 1;
     expect(() => solveWalkthrough(clues, 'sum')).toThrow(/no valid combination/);
   });

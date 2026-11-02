@@ -6,10 +6,16 @@ import { solveWalkthrough } from './walkthroughSolver';
 export const isLogicallySolvableForDigging = (clues: (number | null)[], mode: ClueMode) =>
   solveWalkthrough(clues, mode, { allowSearch: false, profile: 'generation', recordSteps: false }).status === 'solved';
 
+export type DiggingMode = 'single' | 'dual';
+export const diggingGroups = (mode: DiggingMode): number[][] => mode === 'dual'
+  ? Array.from({ length: 41 }, (_, cell) => cell === 40 ? [40] : [cell, 80 - cell])
+  : Array.from({ length: 81 }, (_, cell) => [cell]);
+
 export interface DigProgress {
   attempt: number;
   pass?: number;
   tested: number;
+  total?: number;
   givens: number;
   phase: 'checking' | 'digging';
 }
@@ -23,6 +29,7 @@ export function digPuzzle(
   onProgress: (progress: DigProgress, puzzle?: IntersectionPuzzle) => void = () => {},
   random: () => number = Math.random,
   initial?: IntersectionPuzzle,
+  diggingMode: DiggingMode = 'single',
 ): DugPuzzle {
   for (let attempt = 1; ; attempt++) {
     const puzzle = attempt === 1 && initial ? initial : generatePuzzle(random, mode);
@@ -30,8 +37,8 @@ export function digPuzzle(
     const solver = new VariantSolver(puzzle.clues, mode, puzzle.solution);
     if (!isLogicallySolvableForDigging(puzzle.clues, mode) || solver.countSolutions() !== 1) continue;
     const active = Array<boolean>(81).fill(true);
-    const order = Array.from({ length: 81 }, (_, i) => i);
-    for (let i = 80; i > 0; i--) {
+    const order = diggingGroups(diggingMode);
+    for (let i = order.length - 1; i > 0; i--) {
       const j = Math.floor(random() * (i + 1));
       [order[i], order[j]] = [order[j], order[i]];
     }
@@ -41,17 +48,17 @@ export function digPuzzle(
     do {
       removed = false;
       pass++;
-      for (const [tested, cell] of order.entries()) {
-        if (!active[cell]) continue;
-        active[cell] = false;
+      for (const [tested, cells] of order.entries()) {
+        if (!active[cells[0]]) continue;
+        for (const cell of cells) active[cell] = false;
         const candidate = puzzle.clues.map((clue, index) => active[index] ? clue : null);
         // Reject logical stalls before spending time on an exact uniqueness search.
         if (isLogicallySolvableForDigging(candidate, mode)
           && solver.countSolutions(active) === 1) {
-          givens--;
+          givens -= cells.length;
           removed = true;
-        } else active[cell] = true;
-        onProgress({ attempt, tested: tested + 1, givens, pass, phase: 'digging' });
+        } else for (const cell of cells) active[cell] = true;
+        onProgress({ attempt, tested: tested + 1, total: order.length, givens, pass, phase: 'digging' });
       }
     } while (removed);
     // Recheck retained clues: a deterministic logical strategy need not behave

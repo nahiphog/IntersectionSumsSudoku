@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { countVariantSolutions, VariantSolver } from '../src/variantSolver';
 import { solveWalkthrough } from '../src/walkthroughSolver';
-import { digPuzzle, isLogicallySolvableForDigging } from '../src/digging';
+import { digPuzzle, isLogicallySolvableForDigging, diggingGroups, type DiggingMode } from '../src/digging';
 import { generatePuzzle, intersectionClues, type ClueMode } from '../src/puzzle';
 
 const seeded = () => { let seed = 42; return () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; }; };
@@ -30,12 +30,12 @@ describe('variant uniqueness and digging', () => {
     expect(countVariantSolutions(clues, 'product')).toBe(0);
   });
 
-  for (const mode of ['sum', 'product'] as ClueMode[]) {
-    it(`${mode}: digs a unique, logically solvable puzzle and preserves all source clues`, () => {
+  for (const mode of ['sum', 'product'] as ClueMode[]) for (const diggingMode of ['single', 'dual'] as DiggingMode[]) {
+    it(`${mode}/${diggingMode}: digs a unique, logically solvable puzzle and preserves all source clues`, () => {
       const random = seeded();
       const initial = generatePuzzle(random, mode);
       const clues = [...initial.clues];
-      const result = digPuzzle(mode, () => {}, random, initial);
+      const result = digPuzzle(mode, () => {}, random, initial, diggingMode);
       expect(initial.clues).toEqual(clues);
       expect(result.clues).toEqual(intersectionClues(result.solution, mode));
       expect(result.dugClues.filter(c => c !== null).length).toBeLessThan(81);
@@ -46,13 +46,15 @@ describe('variant uniqueness and digging', () => {
       expect(logical.status).toBe('solved');
       expect(logical.searchSteps).toBe(0);
       expect(logical.steps.at(-1)!.after.values).toEqual(result.solution);
-      for (let cell = 0; cell < 81; cell++) {
+      if (diggingMode === 'dual') result.dugClues.forEach((clue, cell) => expect(clue === null).toBe(result.dugClues[80 - cell] === null));
+      for (const group of diggingGroups(diggingMode)) {
+        const cell = group[0];
         if (result.dugClues[cell] === null) continue;
         expect(result.dugClues[cell]).toBe(result.clues[cell]);
         const active = Array(81).fill(true);
-        active[cell] = false;
+        for (const c of group) active[c] = false;
         const candidate = [...result.dugClues];
-        candidate[cell] = null;
+        for (const c of group) candidate[c] = null;
         if (isLogicallySolvableForDigging(candidate, mode)) {
           expect(solver.countSolutions(active)).toBe(2);
         }
