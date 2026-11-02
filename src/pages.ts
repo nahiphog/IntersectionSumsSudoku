@@ -1,9 +1,10 @@
+import { ACTIVE_LOGICAL_ORDER, BRUTE_FORCE_NAME, BRUTE_FORCE_SCORE, POLICY_NOTE } from './techniquePolicy';
 import './style.css';
 import { mountNavigation } from './navigation';
 import { mountWalkthrough } from './walkthrough';
 import { parseClues } from './lab';
 import { serializeClues, serializeSolution, type ClueMode } from './puzzle';
-import { NO_UNIQUENESS_ORDER, TECHS } from './vendor/sudokui/engine/ratings';
+import { TECHS } from './vendor/sudokui/engine/ratings';
 import { TALLY_KEY, saveTally } from './tally';
 import { rateWalkthrough } from './difficulty';
 import type { Walkthrough } from './walkthroughSolver';
@@ -150,7 +151,7 @@ if (page === 'verify') {
     } catch (error) { status.textContent = (error as Error).message; }
   };
 } else if (page === 'simulation') {
-  controls.innerHTML = `<p>Generate dug puzzles and tally their remaining clue counts. Every accepted puzzle is uniquely solvable. Only samples meeting the clue cap are displayed; all completed trials count in the distribution.</p><fieldset><div class="lab-actions">${operation}<label>Trials <input id="trials" aria-label="Trials" type="number" min="1" max="1000000" value="10"></label><label>Sample clue cap <input id="cap" aria-label="Sample clue cap" type="number" min="0" max="81" value="25"></label><label>Digging <select id="digging"><option value="single">Single</option><option value="dual">Dual</option></select></label><label><input id="search" type="checkbox" checked> Allow backtracking</label></div><button id="run-simulation" type="button">Run simulation</button></fieldset>`;
+  controls.innerHTML = `<p>Generate dug puzzles and tally their remaining clue counts. Every accepted puzzle is uniquely solvable. Only samples meeting the clue cap are displayed; all completed trials count in the distribution.</p><fieldset><div class="lab-actions">${operation}<label>Trials <input id="trials" aria-label="Trials" type="number" min="1" max="1000000" value="10"></label><label>Sample clue cap <input id="cap" aria-label="Sample clue cap" type="number" min="0" max="81" value="25"></label><label>Digging <select id="digging"><option value="single">Single</option><option value="dual">Dual</option></select></label><label><input id="search" type="checkbox" checked> Allow brute force</label></div><button id="run-simulation" type="button">Run simulation</button></fieldset>`;
   get('#run-simulation').onclick = () => {
     try {
       const trials = integer('#trials',1,1000000), cap = integer('#cap',0,81);
@@ -179,7 +180,7 @@ if (page === 'verify') {
     } catch { status.textContent = 'Saved tally unavailable. Generate or verify a puzzle to create one.'; }
     const catalogue = [
       {name:'Intersection sum',score:10,level:'Variant'}, {name:'Intersection product',score:10,level:'Variant'}, {name:'Combined sum equations',score:10,level:'Variant'},
-      ...NO_UNIQUENESS_ORDER.filter(t=>t!=='BRUTE_FORCE').map(t=>TECHS[t]), {name:'Backtracking (search)',score:null,level:'Search-assisted'},
+      ...ACTIVE_LOGICAL_ORDER.map(t=>TECHS[t]), {name:BRUTE_FORCE_NAME,score:BRUTE_FORCE_SCORE,level:'Extreme'},
     ];
     const table = document.createElement('table'); table.className = 'lab-table'; table.innerHTML = '<caption>Active techniques and latest walkthrough tally</caption><thead><tr><th>Technique</th><th>Level</th><th>Points/use</th><th>Uses</th><th>Total</th></tr></thead>';
     const body = document.createElement('tbody'); let totalUses=0,totalScore=0;
@@ -188,7 +189,7 @@ if (page === 'verify') {
       const tr = document.createElement('tr');
       for(const value of [info.name,info.level,info.score===null?'Unscored':`+${info.score}`,count,info.score===null?'—':count*info.score]) {const td=document.createElement('td');td.textContent=String(value);tr.append(td);} body.append(tr);
     }
-    table.append(body); const summary=document.createElement('p');summary.textContent=`${totalUses} recorded steps · ${totalScore} logical points. Search steps are unscored. Classic uniqueness techniques are excluded.`;
+    table.append(body); const summary=document.createElement('p');summary.textContent=`${totalUses} recorded steps · ${totalScore} points. Brute force adds 10000 per use. ${POLICY_NOTE}`;
     results.append(summary,table);
   }
   get('#refresh-tally').onclick=renderTally;

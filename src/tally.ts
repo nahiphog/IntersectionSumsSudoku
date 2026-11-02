@@ -1,7 +1,7 @@
 import { stepScore } from './difficulty';
 import type { Walkthrough } from './walkthroughSolver';
 import type { ClueMode } from './puzzle';
-export const TALLY_KEY = 'intersection-latest-tally-v1';
+export const TALLY_KEY = 'intersection-latest-tally-v2';
 export function tallySteps(walk: Walkthrough) {
   const rows = new Map<string, { name: string; count: number; points: number | null }>();
   for (const step of walk.steps) {

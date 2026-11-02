@@ -1,3 +1,4 @@
+import { POLICY_NOTE } from './techniquePolicy';
 import { saveTally } from './tally';
 import { rateWalkthrough, stepScore } from './difficulty';
 import type { ClueMode } from './puzzle';
@@ -9,11 +10,11 @@ export function mountWalkthrough(host: HTMLElement) {
   host.innerHTML = `
     <div class="walk-heading"><div><p class="step">04 / SOLVING</p><h2>Solution walkthrough</h2></div><button class="walk-button" data-action="solve" disabled>Solve step by step</button></div>
     <p class="walk-status" role="status">Generate a dug puzzle to begin.</p>
-    <div class="walk-options"><label><input type="checkbox" data-option="search" checked> Allow backtracking if logic stalls</label><button class="walk-button" data-action="cancel" hidden>Cancel solving</button></div>
-    <p class="walk-note">Uses sudokUI techniques and the remaining sum/product clues. Classic uniqueness techniques are excluded. Search-assisted steps are labeled explicitly.</p>
+    <div class="walk-options"><label><input type="checkbox" data-option="search" checked> Allow brute force if logic stalls</label><button class="walk-button" data-action="cancel" hidden>Cancel solving</button></div>
+    <p class="walk-note">Uses sudokUI techniques and the remaining sum/product clues. ${POLICY_NOTE} Brute-force steps are labeled explicitly.</p>
     <div class="walk-content" hidden>
       <p class="walk-rating" data-display="rating" role="status"></p>
-      <p class="walk-note">Variant rating: sudokUI technique scores, plus 10 per intersection sum/product or combined sum equation step. Search steps are unscored; incomplete logical solves show a subtotal only.</p>
+      <p class="walk-note">Variant rating: sudokUI technique scores, plus 10 per intersection sum/product or combined sum equation step. Brute force adds 10000 per use. Unfinished walkthroughs show a subtotal only.</p>
       <div class="walk-layout"><article class="board-panel"><div class="panel-heading"><h3 data-display="counter"></h3><label>View <select data-option="view"><option value="after">After step</option><option value="before">Before step</option></select></label></div><div class="grid walk-grid" role="table" aria-label="Solver candidates and placements"></div><p class="walk-legend"><span>Blue: pattern / clue</span><span>Green: placement</span><span>Red ×: removed candidate</span></p></article>
       <div class="walk-detail"><span class="pill" data-display="kind"></span><h3 data-display="technique"></h3><p data-display="description"></p><details class="walk-effects"><summary>Candidate changes</summary><p data-display="effects"></p></details><details class="walk-combinations" hidden><summary>Valid neighbouring combinations</summary><p data-display="combination-order"></p><ul data-display="combinations"></ul></details></div></div>
       <div class="walk-controls"><button class="walk-button" data-action="first">First</button><button class="walk-button" data-action="previous">Previous</button><label class="walk-slider">Step <input type="range" min="0" value="0" max="0" aria-label="Walkthrough step"></label><button class="walk-button" data-action="next">Next</button><button class="walk-button" data-action="last">Last</button></div>
@@ -48,7 +49,7 @@ export function mountWalkthrough(host: HTMLElement) {
     const before = view.value === 'before';
     const state = step ? (before ? step.before : step.after) : walk.initial;
     display('counter', `Step ${index} of ${walk.steps.length}`);
-    display('kind', step ? { sudoku: 'sudokUI technique', constraint: 'Variant constraint', search: 'Search-assisted' }[step.kind] : 'Starting position');
+    display('kind', step ? { sudoku: 'sudokUI technique', constraint: 'Variant constraint', search: 'Brute force' }[step.kind] : 'Starting position');
     display('technique', step ? step.technique + (stepScore(step) === null ? ' (unscored)' : ' (+' + stepScore(step) + ')') : 'Initial candidates');
     display('description', step?.description ?? 'All cells start empty with candidates 1–9. Corner numbers are clues about neighbouring cells, not placed Sudoku digits. Move to the next step to see the first deduction.');
     const list = (items: { cell: number; digit: number }[]) => items.map(item => `${position(item.cell)} ≠ ${item.digit}`).join('; ');
@@ -118,9 +119,9 @@ export function mountWalkthrough(host: HTMLElement) {
       if (event.data.type === 'progress') { status.textContent = `${event.data.steps} steps recorded. ${event.data.message}`; return; }
       walk = event.data.result; saveTally(walk, mode); stop(); content.hidden = false;
       solveButton.textContent = 'Rebuild walkthrough';
-      status.textContent = `${walk.status === 'solved' ? 'Solved' : 'Logic stalled — partial walkthrough'} · ${walk.steps.length} steps · ${walk.searchSteps} search-assisted · ${((performance.now() - started) / 1000).toFixed(2)} s`;
+      status.textContent = `${walk.status === 'solved' ? 'Solved' : 'Logic stalled — partial walkthrough'} · ${walk.steps.length} steps · ${walk.searchSteps} brute-force · ${((performance.now() - started) / 1000).toFixed(2)} s`;
       const rating = rateWalkthrough(walk);
-      display('rating', rating.complete ? 'Difficulty: ' + rating.level + ' · ' + rating.score + ' points' : 'Difficulty: ' + (walk.searchSteps ? 'search-assisted' : 'not yet rated') + ' · logical subtotal: ' + rating.score + ' points');
+      display('rating', rating.complete ? 'Difficulty: ' + rating.level + ' · ' + rating.score + ' points' : 'Difficulty: ' + (walk.searchSteps ? 'brute force used' : 'not yet rated') + ' · subtotal: ' + rating.score + ' points');
       range.max = String(walk.steps.length); jump.replaceChildren();
       ['Initial candidates', ...walk.steps.map(s => s.technique)].forEach((name, i) => { const option = document.createElement('option'); option.value = String(i); option.textContent = `${i}. ${name}`; jump.append(option); });
       const tally = new Map<string, number[]>();

@@ -4,6 +4,8 @@ import { generatePuzzle, intersectionClues, type ClueMode } from '../src/puzzle'
 
 import { VariantSolver } from '../src/variantSolver';
 import { emptyGrid, bit, UNITS } from '../src/vendor/sudokui/engine/board';
+import { ACTIVE_LOGICAL_ORDER } from '../src/techniquePolicy';
+import { TECHS } from '../src/vendor/sudokui/engine/ratings';
 
 function random() { let state = 42; return () => { state = (Math.imul(state, 1664525) + 1013904223) >>> 0; return state / 4294967296; }; }
 function verify(walk: Walkthrough, solution: number[]) {
@@ -12,6 +14,8 @@ function verify(walk: Walkthrough, solution: number[]) {
   expect(walk.steps.some(s => s.kind === 'constraint')).toBe(true);
   expect(walk.steps.some(s => s.kind === 'sudoku')).toBe(true);
   walk.steps.forEach((step, index) => {
+    if (step.kind === 'sudoku') expect(ACTIVE_LOGICAL_ORDER.map(t=>TECHS[t].name)).toContain(step.technique);
+    if (step.kind === 'search') expect(step.technique).toBe('Brute force');
     expect(step.before).toEqual(index ? walk.steps[index - 1].after : walk.initial);
     for (const { cell, digit } of [...step.eliminations, ...step.peerEliminations]) expect(digit).not.toBe(solution[cell]);
     for (const { cell, digit } of step.placements) expect(digit).toBe(solution[cell]);

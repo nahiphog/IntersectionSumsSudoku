@@ -3,7 +3,8 @@ import type { ClueMode } from './puzzle';
 import { intersectionClues } from './puzzle';
 import { emptyGrid, cloneGrid, bit, digitsOf, cellName, isSolved, isBroken, UNITS, type Grid } from './vendor/sudokui/engine/board';
 import { findStep, applyStep } from './vendor/sudokui/engine/humanSolver';
-import { NO_UNIQUENESS_ORDER, TECHS } from './vendor/sudokui/engine/ratings';
+import { TECHS } from './vendor/sudokui/engine/ratings';
+import { ACTIVE_LOGICAL_ORDER, BRUTE_FORCE_NAME } from './techniquePolicy';
 import type { CellDigit, Step } from './vendor/sudokui/engine/steps';
 import { sumEquations, type SumEquation } from './sumEquations';
 
@@ -131,8 +132,8 @@ export function solveWalkthrough(clues: Clues, mode: ClueMode, options: {
   const equations = mode === 'sum' ? sumEquations(clues, Array(81).fill(true)) : [];
   const steps: ExplainedStep[] = [];
   let searchSteps = 0;
-  const order = NO_UNIQUENESS_ORDER.filter(tech => tech !== 'BRUTE_FORCE'
-    && (options.profile !== 'generation' || TECHS[tech].index <= TECHS.XYZ_WING.index));
+  const order = ACTIVE_LOGICAL_ORDER.filter(tech =>
+    options.profile !== 'generation' || TECHS[tech].index <= TECHS.XYZ_WING.index);
   let stepCount = 0;
   const fromSudoku = (step: Step): Omit<ExplainedStep, 'before' | 'after' | 'peerEliminations'> => ({
     technique: TECHS[step.tech].name, kind: 'sudoku', description: step.description,
@@ -167,8 +168,8 @@ export function solveWalkthrough(clues: Clues, mode: ClueMode, options: {
       if (!completion) throw new Error('No completion satisfies the current candidates and dug clues.');
       const cell = [...grid.values].findIndex(value => !value);
       step = {
-        technique: 'Backtracking (search)', kind: 'search',
-        description: `The applicable logical techniques found no further step. Backtracking tested candidate assignments against all Sudoku rules and remaining ${mode} clues and found a compatible completion. Place ${completion[cell]} in ${cellName(cell)} along that searched path. This is a search-assisted placement, not a named logical deduction.`,
+        technique: BRUTE_FORCE_NAME, kind: 'search',
+        description: `The active logical techniques found no further step. Brute force tested candidate assignments against all Sudoku rules and remaining ${mode} clues and found a compatible completion. Place ${completion[cell]} in ${cellName(cell)} along that searched path. This brute-force placement adds 10000 points.`,
         placements: [{ cell, digit: completion[cell] }], eliminations: [], related: [cell],
       };
       searchSteps++;

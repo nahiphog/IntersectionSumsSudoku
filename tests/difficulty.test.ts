@@ -20,11 +20,12 @@ it('uses total-score thresholds and the hardest technique level', () => {
   expect(rateWalkthrough({ status: 'solved', steps: Array(81).fill(step('constraint', 'Intersection sum')) }).level).toBe('Medium');
   expect(rateWalkthrough({ status: 'solved', steps: [step('sudoku', TECHS.X_WING.name)] }).level).toBe(TECHS.X_WING.level);
 });
-it('does not give search-assisted or stalled solves a completed logical rating', () => {
+it('scores every brute-force instance and leaves stalled ratings incomplete', () => {
   const logical = step('constraint', 'Intersection product');
-  const search = step('search', 'Backtracking (search)');
-  expect(stepScore(search)).toBeNull();
-  for (const walk of [{ status: 'solved' as const, steps: [logical, search] }, { status: 'stalled' as const, steps: [logical] }]) {
-    expect(rateWalkthrough(walk)).toEqual({ score: 10, level: null, complete: false });
-  }
+  const search = step('search', 'Brute force');
+  expect(stepScore(search)).toBe(10000);
+  expect(rateWalkthrough({ status: 'solved', steps: [logical, search, search] }))
+    .toEqual({ score: 20010, level: 'Extreme', complete: true });
+  expect(rateWalkthrough({ status: 'stalled', steps: [logical, search] }))
+    .toEqual({ score: 10010, level: null, complete: false });
 });
