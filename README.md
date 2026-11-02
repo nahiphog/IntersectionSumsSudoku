@@ -25,7 +25,9 @@ Generate now also creates a **dug puzzle** in a background worker. A dedicated v
 
 The backtracking solver enforces Sudoku units and exact sum/product tuple constraints. It propagates candidates, singles, pairs and locked candidates; sum mode additionally uses exact integer combinations of clue equations and 45 unit totals. A validated solution witness helps order branches and detect actual alternate Sudoku digit trades. Uniqueness still requires a complete search, stopping as soon as two solutions are found. There is no time limit that silently assumes uniqueness. Sparse sum puzzles can take considerably longer than product puzzles.
 
-The finished puzzle is locally minimal under these two checks, not guaranteed to have the global minimum number of clues. Retained clues are retested until a full pass removes nothing, since the deterministic logical strategy may behave differently after further removals. Automated tests exercise both modes and verify uniqueness, a complete logical solution, and that each retained clue is necessary for at least one check. Logical checks add to generation time.
+Digging uses a conservative fast technique profile: imported singles, intersections, subsets, basic fish, short patterns, and wings through XYZ-Wing, together with local sum/product constraints and exact sum equations. If these techniques stall, the clue is retained; expensive advanced chains and forcing techniques are not attempted during digging. This can leave more clues but never accepts an unfinished logical solve. Every accepted removal still passes the independent exact uniqueness check. The full technique set remains available to the walkthrough solver.
+
+The finished puzzle is locally minimal under this fast profile and the uniqueness check, not guaranteed to have the global minimum number of clues. Retained clues are retested until a full pass removes nothing, since the deterministic logical strategy may behave differently after further removals. Automated tests exercise both modes and verify uniqueness, a complete logical solution, and that each retained clue is necessary for at least one check. Generation checks omit walkthrough history and peer-elimination snapshots; the final walkthrough is built once after digging.
 
 ## Solution walkthrough
 
@@ -39,7 +41,7 @@ Run the site with `npm run dev`; opening `index.html` directly with `file://` ca
 
 ## GitHub Pages deployment
 
-The `.github/workflows/pages.yml` workflow installs dependencies with `npm ci` from `package-lock.json`, runs core Sudoku and walkthrough tests, checks TypeScript, and builds the static site on Node.js 24. Pushes to `main` deploy `dist/` through GitHub Pages; pull requests run build checks without deploying. Repository Settings → Pages must use **GitHub Actions** as the source. The much slower exhaustive digging tests are available separately through the manual `.github/workflows/solver-regression.yml` workflow; `npm test` still runs all tests locally.
+The `.github/workflows/pages.yml` workflow installs dependencies with `npm ci` from `package-lock.json`, runs the full Sudoku, digging, and walkthrough test suite, checks TypeScript, and builds the static site on Node.js 24. Pushes to `main` deploy `dist/` through GitHub Pages; pull requests run build checks without deploying. Repository Settings → Pages must use **GitHub Actions** as the source. The `.github/workflows/solver-regression.yml` workflow also allows digging tests to be rerun manually.
 
 `npm run build -- --mode github-pages` sets the correct `/IntersectionSumsSudoku/` asset and worker paths. Regular development builds keep `/` as their base. Application code, workers, and Vite configuration remain TypeScript; only the generated deployment assets are JavaScript. npm dependencies live in `package.json` and its lockfile, while `.github/dependabot.yml` checks npm and GitHub Actions dependencies monthly.
 

@@ -2,6 +2,10 @@ import { generatePuzzle, type ClueMode, type IntersectionPuzzle } from './puzzle
 import { VariantSolver } from './variantSolver';
 import { solveWalkthrough } from './walkthroughSolver';
 
+/** A stall retains the clue; it never counts as a successful solve. */
+export const isLogicallySolvableForDigging = (clues: (number | null)[], mode: ClueMode) =>
+  solveWalkthrough(clues, mode, { allowSearch: false, profile: 'generation', recordSteps: false }).status === 'solved';
+
 export interface DigProgress {
   attempt: number;
   pass?: number;
@@ -24,8 +28,7 @@ export function digPuzzle(
     const puzzle = attempt === 1 && initial ? initial : generatePuzzle(random, mode);
     onProgress({ attempt, tested: 0, givens: 81, phase: 'checking' }, puzzle);
     const solver = new VariantSolver(puzzle.clues, mode, puzzle.solution);
-    if (solver.countSolutions() !== 1
-      || solveWalkthrough(puzzle.clues, mode, { allowSearch: false }).status !== 'solved') continue;
+    if (!isLogicallySolvableForDigging(puzzle.clues, mode) || solver.countSolutions() !== 1) continue;
     const active = Array<boolean>(81).fill(true);
     const order = Array.from({ length: 81 }, (_, i) => i);
     for (let i = 80; i > 0; i--) {
@@ -43,7 +46,7 @@ export function digPuzzle(
         active[cell] = false;
         const candidate = puzzle.clues.map((clue, index) => active[index] ? clue : null);
         // Reject logical stalls before spending time on an exact uniqueness search.
-        if (solveWalkthrough(candidate, mode, { allowSearch: false }).status === 'solved'
+        if (isLogicallySolvableForDigging(candidate, mode)
           && solver.countSolutions(active) === 1) {
           givens--;
           removed = true;

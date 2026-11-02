@@ -92,6 +92,10 @@ export function findConstraintStep(grid: Grid, solver: VariantSolver, mode: Clue
 /** Uses only the dug clues. It never receives the generated completed grid. */
 export function solveWalkthrough(clues: Clues, mode: ClueMode, options: {
   allowSearch?: boolean;
+  /** Conservative generation filter: stop before expensive advanced finders. */
+  profile?: 'full' | 'generation';
+  /** Digging needs a proof of completion, not hundreds of UI snapshots. */
+  recordSteps?: boolean;
   onProgress?: (steps: number, message: string) => void;
 } = {}): Walkthrough {
   const grid = emptyGrid();
@@ -100,7 +104,9 @@ export function solveWalkthrough(clues: Clues, mode: ClueMode, options: {
   const equations = mode === 'sum' ? sumEquations(clues, Array(81).fill(true)) : [];
   const steps: ExplainedStep[] = [];
   let searchSteps = 0;
-  const order = NO_UNIQUENESS_ORDER.filter(tech => tech !== 'BRUTE_FORCE');
+  const order = NO_UNIQUENESS_ORDER.filter(tech => tech !== 'BRUTE_FORCE'
+    && (options.profile !== 'generation' || TECHS[tech].index <= TECHS.XYZ_WING.index));
+  let stepCount = 0;
   const fromSudoku = (step: Step): Omit<ExplainedStep, 'before' | 'after' | 'peerEliminations'> => ({
     technique: TECHS[step.tech].name, kind: 'sudoku', description: step.description,
     placements: step.placements, eliminations: step.eliminations,
@@ -122,13 +128,13 @@ export function solveWalkthrough(clues: Clues, mode: ClueMode, options: {
     if (!step) step = findSumEquationStep(grid, equations);
     if (!step) {
       for (const tech of order.slice(3)) {
-        options.onProgress?.(steps.length, `Checking ${TECHS[tech].name}…`);
+        options.onProgress?.(stepCount, `Checking ${TECHS[tech].name}…`);
         classic = findStep(tech, grid);
         if (classic) { step = fromSudoku(classic); break; }
       }
     }
     if (!step) {
-      if (options.allowSearch === false) return { initial, steps, status: 'stalled', searchSteps };
+      if (options.allowSearch === false || options.profile === 'generation') return { initial, steps, status: 'stalled', searchSteps };
       options.onProgress?.(steps.length, 'Logical techniques stalled; searching Sudoku and clue constraints…');
       const completion = solver.solve(domainsOf(grid));
       if (!completion) throw new Error('No completion satisfies the current candidates and dug clues.');
@@ -140,12 +146,12 @@ export function solveWalkthrough(clues: Clues, mode: ClueMode, options: {
       };
       searchSteps++;
     }
-    const previous = cloneGrid(grid);
+    const previous = options.recordSteps === false ? null : cloneGrid(grid);
     // Custom steps share the imported engine's placement/elimination semantics.
     applyStep(grid, { tech: classic?.tech ?? 'BRUTE_FORCE', placements: step.placements, eliminations: step.eliminations, description: step.description });
     const after = snapshot(grid);
     const peerEliminations: CellDigit[] = [];
-    for (let cell = 0; cell < 81; cell++) {
+    for (let cell = 0; previous && cell < 81; cell++) {
       if (grid.values[cell]) continue;
       for (const digit of digitsOf(previous.cands[cell] & ~grid.cands[cell])) {
         if (!step.eliminations.some(e => e.cell === cell && e.digit === digit)) peerEliminations.push({ cell, digit });
@@ -154,8 +160,8 @@ export function solveWalkthrough(clues: Clues, mode: ClueMode, options: {
     if (before.values.every((v, i) => v === after.values[i]) && before.candidates.every((v, i) => v === after.candidates[i])) {
       throw new Error(`${step.technique} produced no change.`);
     }
-    steps.push({ ...step, before, after, peerEliminations });
-    options.onProgress?.(steps.length, step.technique);
+    if (options.recordSteps !== false) steps.push({ ...step, before, after, peerEliminations });
+    options.onProgress?.(++stepCount, step.technique);
   }
   const calculated = intersectionClues([...grid.values], mode);
   if (UNITS.some(unit => new Set(unit.map(c => grid.values[c])).size !== 9)
