@@ -1,0 +1,197 @@
+import './style.css';
+import { mountNavigation } from './navigation';
+import { mountWalkthrough } from './walkthrough';
+import { parseClues } from './lab';
+import { serializeClues, serializeSolution, type ClueMode } from './puzzle';
+import { NO_UNIQUENESS_ORDER, TECHS } from './vendor/sudokui/engine/ratings';
+import { TALLY_KEY, saveTally } from './tally';
+import { rateWalkthrough } from './difficulty';
+import type { Walkthrough } from './walkthroughSolver';
+import type { LabRequest } from './lab.worker';
+
+const page = location.pathname.split('/').filter(Boolean).filter(p => p !== 'index.html').pop();
+const titles: Record<string, string> = { techniques: 'Techniques tally', 'custom-build': 'Custom Build', simulation: 'Simulation', verify: 'Verify' };
+const title = titles[page ?? ''] ?? 'Verify';
+document.title = `${title} — Intersection Sums/Products Sudoku`;
+document.querySelector('#app')!.innerHTML = `<header class="masthead"><a class="brand" href="${import.meta.env.BASE_URL}">✣ Intersection Sums/Products Sudoku</a></header><main class="lab-page"><p class="eyebrow">PUZZLE LABORATORY</p><h1>${title}</h1><div id="page-controls"></div><p id="lab-status" role="status">Ready.</p><button id="lab-stop" class="walk-button" hidden>Stop</button><section id="lab-results" aria-label="Results"></section><section id="lab-walk"></section></main>`;
+mountNavigation();
+const get = <T extends HTMLElement>(selector: string) => document.querySelector<T>(selector)!;
+const controls = get('#page-controls'), results = get('#lab-results'), status = get('#lab-status');
+const walkthrough = mountWalkthrough(get('#lab-walk'));
+get('#lab-walk').hidden = true;
+const stopButton = get<HTMLButtonElement>('#lab-stop');
+let worker: Worker | undefined;
+const operation = `<label>Clue operation <select id="lab-mode"><option value="sum">Sum</option><option value="product">Product</option></select></label>`;
+const mode = () => get<HTMLSelectElement>('#lab-mode').value as ClueMode;
+const integer = (selector: string, min: number, max: number) => {
+  const input = get<HTMLInputElement>(selector), value = Number(input.value);
+  if (!input.value.trim() || !Number.isInteger(value) || value < min || value > max) throw new Error(`${input.getAttribute('aria-label') ?? 'Value'} must be an integer from ${min} to ${max}.`);
+  return value;
+};
+function stop() {
+  worker?.terminate(); worker = undefined; stopButton.hidden = true;
+  const fields = controls.querySelector('fieldset'); if (fields) fields.disabled = false;
+}
+stopButton.onclick = () => { stop(); status.textContent = 'Stopped. Completed results are retained; unfinished searches have no verdict.'; };
+window.addEventListener('pagehide', () => { stop(); walkthrough.reset(); });
+function run(request: LabRequest, receive: (data: LabResponse) => void) {
+  stop(); controls.querySelector('fieldset')!.disabled = true; stopButton.hidden = false;
+  const current = new Worker(new URL('./lab.worker.ts', import.meta.url), { type: 'module' }); worker = current;
+  current.onerror = event => { if (worker !== current) return; stop(); status.textContent = `Unable to finish: ${event.message}`; };
+  current.onmessage = ({ data }: MessageEvent<LabResponse>) => {
+    if (worker !== current) return;
+    if (data.type === 'progress') { status.textContent = data.message; return; }
+    if (data.type === 'error' || data.type === 'exhausted') { stop(); status.textContent = data.message; return; }
+    receive(data);
+  };
+  current.postMessage(request);
+}
+type LabResponse =
+  | { type: 'progress' | 'error' | 'exhausted'; message: string }
+  | { type: 'verified'; count: number; solutions: number[][] }
+  | { type: 'built'; clues: (number | null)[]; solution: number[]; walk: Walkthrough; attempt: number }
+  | { type: 'sample'; trial: number; clues: (number | null)[]; ms: number }
+  | { type: 'complete' };
+function resetResults() { results.replaceChildren(); walkthrough.reset(); get('#lab-walk').hidden = true; }
+function showWalk(clues: (number | null)[], clueMode: ClueMode, allowSearch = true) {
+  get('#lab-walk').hidden = false; walkthrough.load(clues, clueMode, allowSearch);
+}
+function button(text: string, action: () => void) {
+  const b = document.createElement('button'); b.className = 'walk-button'; b.textContent = text; b.onclick = action; return b;
+}
+function grid(values: (number | null)[], clues: boolean, alternate?: number[]) {
+  const board = document.createElement('div'); board.className = 'grid lab-grid'; board.setAttribute('role', 'table');
+  for (let r = 0; r < 9; r++) {
+    const row = document.createElement('div'); row.className = 'grid-row'; row.setAttribute('role', 'row');
+    for (let c = 0; c < 9; c++) {
+      const i = r * 9 + c, cell = document.createElement('div'); cell.className = 'cell'; cell.setAttribute('role', 'cell');
+      const value = document.createElement('span'); value.className = clues ? 'clue' : 'walk-value'; value.textContent = values[i] ? String(values[i]) : '';
+      cell.setAttribute('aria-label', `R${r + 1}C${c + 1}: ${values[i] ?? 'empty'}`);
+      if (alternate && alternate[i] !== values[i]) cell.classList.add('lab-different');
+      cell.append(value); row.append(cell);
+    }
+    board.append(row);
+  }
+  return board;
+}
+async function copy(text: string, host: HTMLElement) {
+  try { await navigator.clipboard.writeText(text); status.textContent = 'Copied to clipboard.'; }
+  catch { const area = document.createElement('textarea'); area.readOnly = true; area.value = text; area.setAttribute('aria-label', 'Copy this text'); host.append(area); area.focus(); area.select(); status.textContent = 'Clipboard unavailable. Copy the selected text.'; }
+}
+function downloadImage(values: (number | null)[], clues: boolean) {
+  const canvas = document.createElement('canvas'); canvas.width = canvas.height = 900;
+  const ctx = canvas.getContext('2d')!; ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, 900, 900); ctx.fillStyle = '#263c34';
+  ctx.font = clues ? '24px sans-serif' : '48px sans-serif'; ctx.textAlign = clues ? 'left' : 'center';
+  values.forEach((value, i) => { if (value) ctx.fillText(String(value), (i % 9) * 100 + (clues ? 7 : 50), Math.floor(i / 9) * 100 + (clues ? 29 : 66)); });
+  for (let i = 0; i <= 9; i++) { ctx.lineWidth = i % 3 ? 1 : 5; ctx.beginPath(); ctx.moveTo(i * 100, 0); ctx.lineTo(i * 100, 900); ctx.moveTo(0, i * 100); ctx.lineTo(900, i * 100); ctx.stroke(); }
+  const a = document.createElement('a'); a.download = 'intersection-sudoku.png'; a.href = canvas.toDataURL('image/png'); a.click();
+}
+function card(name: string, values: (number | null)[], clues = true, alternate?: number[]) {
+  const article = document.createElement('article'); article.className = 'board-panel lab-card';
+  const heading = document.createElement('h2'); heading.textContent = name; article.append(heading, grid(values, clues, alternate));
+  const actions = document.createElement('div'); actions.className = 'lab-actions';
+  actions.append(button('Copy string', () => void copy(clues ? serializeClues(values) : serializeSolution(values as number[]), article)), button('Download image', () => downloadImage(values, clues)));
+  article.append(actions); return article;
+}
+
+if (page === 'verify') {
+  controls.innerHTML = `<p>Paste 81 comma-separated sum/product clues (0 for blanks), or fill the grid. Clues describe neighbours, not the digit in their own cell.</p><fieldset>${operation}<label class="lab-string">Puzzle string<textarea id="puzzle-string" placeholder="0,0,0,…" spellcheck="false"></textarea></label><p>The string takes priority when supplied.</p><div id="entry-grid" class="grid lab-grid"></div><div class="lab-actions"><button id="verify-now" type="button">Verify puzzle</button><button id="clear-input" type="button">Clear input</button><button id="paste-clipboard" type="button">Paste clipboard</button></div></fieldset>`;
+  const inputs: HTMLInputElement[] = [];
+  for (let r = 0; r < 9; r++) {
+    const row = document.createElement('div'); row.className = 'grid-row';
+    for (let c = 0; c < 9; c++) {
+      const wrap = document.createElement('div'); wrap.className = 'cell';
+      const input = document.createElement('input'); input.inputMode = 'numeric'; input.maxLength = 4; input.setAttribute('aria-label', `R${r + 1}C${c + 1} clue`);
+      const index = r * 9 + c;
+      input.onkeydown = event => { const delta = ({ ArrowRight: 1, ArrowLeft: -1, ArrowDown: 9, ArrowUp: -9 } as Record<string, number>)[event.key]; if (delta) { event.preventDefault(); inputs[Math.max(0, Math.min(80, index + delta))].focus(); } };
+      inputs.push(input); wrap.append(input); row.append(wrap);
+    }
+    get('#entry-grid').append(row);
+  }
+  const string = get<HTMLTextAreaElement>('#puzzle-string');
+  get('#clear-input').onclick = () => { string.value = ''; inputs.forEach(i => i.value = ''); resetResults(); status.textContent = 'Input cleared.'; };
+  get('#paste-clipboard').onclick = async () => { try { const text = await navigator.clipboard.readText(); parseClues(text, mode()); string.value = text; resetResults(); status.textContent = 'Puzzle pasted.'; } catch (error) { status.textContent = `Could not paste: ${error instanceof Error ? error.message : error}. You can paste directly into Puzzle string.`; } };
+  get('#verify-now').onclick = () => {
+    resetResults();
+    try {
+      const clueMode = mode(), clues = parseClues(string.value.trim() || inputs.map(i => i.value.trim() || '0').join(','), clueMode);
+      status.textContent = 'Checking for up to two solutions…';
+      run({ task: 'verify', mode: clueMode, clues }, data => {
+        if (data.type !== 'verified') return; stop();
+        status.textContent = data.count === 0 ? 'This puzzle has no solution.' : data.count === 1 ? 'This puzzle has exactly one solution.' : 'This puzzle has at least two solutions. Differences are highlighted in orange.';
+        results.append(card('Entered puzzle', clues));
+        data.solutions.forEach((solution, i) => results.append(card(`Solution ${i + 1}`, solution, false, data.count > 1 ? data.solutions[1 - i] : undefined)));
+        if (data.count === 1) showWalk(clues, clueMode);
+      });
+    } catch (error) { status.textContent = (error as Error).message; }
+  };
+} else if (page === 'custom-build') {
+  controls.innerHTML = `<p>Select the positions that should contain clues. Build searches for values at exactly those positions, with one solution and a complete logical walkthrough within your rating range.</p><fieldset>${operation}<div id="pattern" class="grid lab-grid" aria-label="Select clue positions"></div><p id="selection" aria-live="polite">0 clue positions selected</p><div class="lab-actions"><button id="select-all" type="button">Select all</button><button id="select-none" type="button">Remove highlights</button></div><div class="lab-actions"><label>Minimum rating <input id="minimum" aria-label="Minimum rating" type="number" value="0" min="0" max="1000000"></label><label>Maximum rating <input id="maximum" aria-label="Maximum rating" type="number" value="100000" min="0" max="1000000"></label><label>Attempt limit <input id="attempts" aria-label="Attempt limit" type="number" value="1000" min="1" max="1000000"></label></div><button id="build-now" type="button">Build now</button></fieldset>`;
+  const selected = new Set<number>(), cells: HTMLButtonElement[] = [];
+  const update = () => { cells.forEach((b, i) => { b.setAttribute('aria-pressed', String(selected.has(i))); b.classList.toggle('selected', selected.has(i)); }); get('#selection').textContent = `${selected.size} clue positions selected: ${[...selected].sort((a,b)=>a-b).map(i=>`R${Math.floor(i / 9)+1}C${i%9+1}`).join(', ') || 'none'}`; };
+  for (let r = 0; r < 9; r++) {
+    const row = document.createElement('div'); row.className = 'grid-row';
+    for (let c = 0; c < 9; c++) { const i = r * 9 + c, cell = document.createElement('div'); cell.className = 'cell'; const b = button('', () => { selected.has(i) ? selected.delete(i) : selected.add(i); update(); }); b.setAttribute('aria-label', `R${r+1}C${c+1} clue position`); b.setAttribute('aria-pressed','false'); cells.push(b); cell.append(b); row.append(cell); }
+    get('#pattern').append(row);
+  }
+  get('#select-all').onclick = () => { cells.forEach((_,i)=>selected.add(i)); update(); };
+  get('#select-none').onclick = () => { selected.clear(); update(); };
+  get('#build-now').onclick = () => {
+    try {
+      if (!selected.size) throw new Error('Select at least one clue position. Sparse patterns may not admit a unique puzzle.');
+      const min = integer('#minimum',0,1000000), max = integer('#maximum',0,1000000), attempts = integer('#attempts',1,1000000), clueMode = mode();
+      if (min > max) throw new Error('Minimum rating must not exceed maximum rating.');
+      resetResults(); status.textContent = 'Searching for a matching puzzle…';
+      run({ task:'custom',mode:clueMode,selected:[...selected],min,max,attempts }, data => {
+        if (data.type !== 'built') return; stop(); const rating = rateWalkthrough(data.walk); saveTally(data.walk,clueMode);
+        status.textContent = `Found a unique puzzle in ${data.attempt} attempt(s). Difficulty: ${rating.level} · ${rating.score} points.`;
+        results.append(card('Built puzzle',data.clues),card('Completed grid',data.solution,false)); showWalk(data.clues,clueMode,false);
+      });
+    } catch (error) { status.textContent = (error as Error).message; }
+  };
+} else if (page === 'simulation') {
+  controls.innerHTML = `<p>Generate dug puzzles and tally their remaining clue counts. Every accepted puzzle is uniquely solvable. Only samples meeting the clue cap are displayed; all completed trials count in the distribution.</p><fieldset><div class="lab-actions">${operation}<label>Trials <input id="trials" aria-label="Trials" type="number" min="1" max="1000000" value="10"></label><label>Sample clue cap <input id="cap" aria-label="Sample clue cap" type="number" min="0" max="81" value="25"></label><label>Digging <select id="digging"><option value="single">Single</option><option value="dual">Dual</option></select></label><label><input id="search" type="checkbox" checked> Allow backtracking</label></div><button id="run-simulation" type="button">Run simulation</button></fieldset>`;
+  get('#run-simulation').onclick = () => {
+    try {
+      const trials = integer('#trials',1,1000000), cap = integer('#cap',0,81);
+      resetResults(); results.innerHTML = '<p id="simulation-summary" role="status">No completed trials yet.</p><h2>Clue-count distribution</h2><div id="histogram" aria-label="Clue-count distribution"></div><h2>Qualifying samples</h2><p>Showing the latest 11 qualifying grids.</p><div id="samples" class="lab-samples"></div>';
+      let total = 0, qualified = 0, milliseconds = 0, cluesTotal = 0; const counts = new Map<number,number>();
+      run({ task:'simulation',mode:mode(),trials,digging:get<HTMLSelectElement>('#digging').value as 'single'|'dual',allowSearch:get<HTMLInputElement>('#search').checked }, data => {
+        if (data.type === 'complete') { stop(); status.textContent = `Complete: ${total} trials, ${qualified} qualifying grids.`; return; }
+        if (data.type !== 'sample') return;
+        const n = data.clues.filter(c=>c!==null).length; total++; milliseconds += data.ms; cluesTotal += n; counts.set(n,(counts.get(n) ?? 0)+1);
+        if (n <= cap) { qualified++; const samples = get('#samples'); samples.prepend(card(`Trial ${data.trial} · ${n} clues`,data.clues)); while(samples.children.length>11) samples.lastElementChild!.remove(); }
+        get('#simulation-summary').textContent = `${total} / ${trials} completed · ${qualified} qualify · mean ${(cluesTotal/total).toFixed(1)} clues · ${(milliseconds/total/1000).toFixed(2)} s/grid`;
+        const histogram = get('#histogram'); histogram.replaceChildren(); const max = Math.max(...counts.values());
+        for (const [clues, count] of [...counts].sort(([a],[b])=>a-b)) { const row = document.createElement('div'); row.className = 'hist-row'; const label = document.createElement('span'); label.textContent = `${clues} clues: ${count}`; const bar = document.createElement('meter'); bar.min=0;bar.max=max;bar.value=count;bar.setAttribute('aria-label',`${clues} clues: ${count} puzzles`); row.append(label,bar);histogram.append(row); }
+      });
+    } catch (error) { status.textContent = (error as Error).message; }
+  };
+} else {
+  controls.innerHTML = '<p>Technique counts from the latest completed or partial walkthrough in this browser, alongside the active solver catalogue. Generating or verifying a puzzle updates this tally.</p><button id="refresh-tally" type="button">Refresh tally</button><button id="clear-tally" type="button">Clear saved tally</button>';
+  function renderTally() {
+    results.replaceChildren();
+    let rows: {name:string;count:number;points:number|null}[] = [];
+    try {
+      const saved = JSON.parse(localStorage.getItem(TALLY_KEY) ?? 'null');
+      if (saved && Array.isArray(saved.rows)) { rows = saved.rows.filter((r: {name:unknown;count:unknown})=>typeof r.name==='string' && Number.isInteger(r.count)); status.textContent = `Latest ${saved.mode} walkthrough · ${saved.status} · ${new Date(saved.date).toLocaleString()}`; }
+      else status.textContent = 'No saved walkthrough yet. Generate or verify a puzzle first.';
+    } catch { status.textContent = 'Saved tally unavailable. Generate or verify a puzzle to create one.'; }
+    const catalogue = [
+      {name:'Intersection sum',score:10,level:'Variant'}, {name:'Intersection product',score:10,level:'Variant'}, {name:'Combined sum equations',score:10,level:'Variant'},
+      ...NO_UNIQUENESS_ORDER.filter(t=>t!=='BRUTE_FORCE').map(t=>TECHS[t]), {name:'Backtracking (search)',score:null,level:'Search-assisted'},
+    ];
+    const table = document.createElement('table'); table.className = 'lab-table'; table.innerHTML = '<caption>Active techniques and latest walkthrough tally</caption><thead><tr><th>Technique</th><th>Level</th><th>Points/use</th><th>Uses</th><th>Total</th></tr></thead>';
+    const body = document.createElement('tbody'); let totalUses=0,totalScore=0;
+    for (const info of catalogue) {
+      const count = rows.find(r=>r.name===info.name)?.count ?? 0; totalUses+=count; totalScore+=count*(info.score??0);
+      const tr = document.createElement('tr');
+      for(const value of [info.name,info.level,info.score===null?'Unscored':`+${info.score}`,count,info.score===null?'—':count*info.score]) {const td=document.createElement('td');td.textContent=String(value);tr.append(td);} body.append(tr);
+    }
+    table.append(body); const summary=document.createElement('p');summary.textContent=`${totalUses} recorded steps · ${totalScore} logical points. Search steps are unscored. Classic uniqueness techniques are excluded.`;
+    results.append(summary,table);
+  }
+  get('#refresh-tally').onclick=renderTally;
+  get('#clear-tally').onclick=()=>{try{localStorage.removeItem(TALLY_KEY);}catch{}renderTally();};
+  renderTally();
+}

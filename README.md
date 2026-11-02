@@ -58,3 +58,12 @@ The dug grid uses twice the source-grid width on desktop. The walkthrough uses t
 GPL-3.0; see `LICENSE` and `THIRD_PARTY_NOTICES.md`. Upstream engine code is preserved unchanged at commit `101f0eadf5f4f0b6a9db54724c169e646ef87f4d`.
 
 
+
+## Puzzle laboratory pages
+
+- **Techniques tally** (`techniques/`): the active catalogue, scores, and counts from the latest walkthrough saved in this browser. Storage is optional; no puzzle data is uploaded.
+- **Custom Build** (`custom-build/`): select exact clue positions, operation, rating range, and an attempt limit. Random completed grids supply clue values. A result must pass exact uniqueness and a full logical solve without backtracking before its rating is accepted. Stop terminates the worker. A failed search does not prove that the pattern is impossible.
+- **Simulation** (`simulation/`): batch single/dual digging with the same uniqueness and optional logic-only policy as Generate. All completed trials populate the clue-count histogram and mean/time statistics; only the latest 11 samples within the selected clue cap are retained. Stop preserves completed trials.
+- **Verify** (`verify/`): enter 81 comma-separated clues (zero for blanks), or use the editable grid. Exact search distinguishes no solution, exactly one, and at least two, showing two different completions for ambiguous puzzles. Unique puzzles have an explained walkthrough. Strings and PNG images can be exported.
+
+All four routes are Vite multi-page entries, including direct navigation on GitHub Pages. Adapted from the corresponding [SquishdokuMaker pages](https://github.com/nahiphog/SquishdokuMaker); the implementation uses this project’s 9×9 intersection solver.

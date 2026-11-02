@@ -1,3 +1,4 @@
+import { saveTally } from './tally';
 import { rateWalkthrough, stepScore } from './difficulty';
 import type { ClueMode } from './puzzle';
 import type { ExplainedStep, Walkthrough } from './walkthroughSolver';
@@ -115,7 +116,7 @@ export function mountWalkthrough(host: HTMLElement) {
       if (worker !== current) return;
       if (event.data.type === 'error') { fail(event.data.message); return; }
       if (event.data.type === 'progress') { status.textContent = `${event.data.steps} steps recorded. ${event.data.message}`; return; }
-      walk = event.data.result; stop(); content.hidden = false;
+      walk = event.data.result; saveTally(walk, mode); stop(); content.hidden = false;
       solveButton.textContent = 'Rebuild walkthrough';
       status.textContent = `${walk.status === 'solved' ? 'Solved' : 'Logic stalled — partial walkthrough'} · ${walk.steps.length} steps · ${walk.searchSteps} search-assisted · ${((performance.now() - started) / 1000).toFixed(2)} s`;
       const rating = rateWalkthrough(walk);

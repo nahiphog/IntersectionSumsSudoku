@@ -1,3 +1,4 @@
+import { mountNavigation } from './navigation';
 import './style.css';
 import { intersectionClues, orthogonalNeighbours, serializeClues, serializeSolution, type ClueMode, type IntersectionPuzzle } from './puzzle';
 import type { DugPuzzle, DigProgress, DiggingMode } from './digging';
@@ -249,3 +250,5 @@ function bindCopy(id: string, statusId: string, getText: () => string | undefine
 bindCopy('#copy-dug', '#copy-status', () => dugClues && serializeClues(dugClues), 'Copied 81 comma-separated clues.');
 bindCopy('#copy-solution', '#copy-solution-status', () => puzzle && serializeSolution(puzzle.solution), 'Copied 81 digits.');
 bindCopy('#copy-transformed', '#copy-transformed-status', () => puzzle && serializeClues(puzzle.clues), 'Copied 81 comma-separated clues.');
+
+mountNavigation();
