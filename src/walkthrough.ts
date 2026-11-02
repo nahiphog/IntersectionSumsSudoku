@@ -16,7 +16,7 @@ export function mountWalkthrough(host: HTMLElement) {
       <p class="walk-rating" data-display="rating" role="status"></p>
       <p class="walk-note">Variant rating: sudokUI technique scores, plus 10 per intersection sum/product or combined sum equation step. Brute force adds 10000 per use. Unfinished walkthroughs show a subtotal only.</p>
       <div class="walk-layout"><article class="board-panel"><div class="panel-heading"><h3 data-display="counter"></h3><label>View <select data-option="view"><option value="after">After step</option><option value="before">Before step</option></select></label></div><div class="grid walk-grid" role="table" aria-label="Solver candidates and placements"></div><p class="walk-legend"><span>Blue: pattern / clue</span><span>Green: placement</span><span>Red ×: removed candidate</span></p></article>
-      <div class="walk-sidebar"><section class="walk-summary" aria-label="Techniques tally"><h3>Techniques tally</h3><table><thead><tr><th scope="col">Technique</th><th scope="col">Uses</th><th scope="col">Points/use</th><th scope="col">Total</th></tr></thead><tbody></tbody></table><p class="walk-note">Counts cover the whole walkthrough. Select a count to jump to its first use.</p></section><div class="walk-detail"><span class="pill" data-display="kind"></span><h3 data-display="technique"></h3><p data-display="description"></p><details class="walk-effects"><summary>Candidate changes</summary><p data-display="effects"></p></details><details class="walk-combinations" hidden><summary>Valid neighbouring combinations</summary><p data-display="combination-order"></p><ul data-display="combinations"></ul></details></div></div></div>
+      <div class="walk-sidebar"><section class="walk-summary" aria-label="Techniques tally"><h3>Techniques tally</h3><table><thead><tr><th scope="col">Technique</th><th scope="col">Uses</th></tr></thead><tbody></tbody></table><p class="walk-note">Counts cover the whole walkthrough. Select a count to jump to its first use.</p></section><div class="walk-detail"><span class="pill" data-display="kind"></span><h3 data-display="technique"></h3><p data-display="description"></p><details class="walk-effects"><summary>Candidate changes</summary><p data-display="effects"></p></details><details class="walk-combinations" hidden><summary>Valid neighbouring combinations</summary><p data-display="combination-order"></p><ul data-display="combinations"></ul></details></div></div></div>
       <div class="walk-controls"><button class="walk-button" data-action="first">First</button><button class="walk-button" data-action="previous">Previous</button><label class="walk-slider">Step <input type="range" min="0" value="0" max="0" aria-label="Walkthrough step"></label><button class="walk-button" data-action="next">Next</button><button class="walk-button" data-action="last">Last</button></div>
       <label class="walk-jump">Jump to step <select aria-label="Jump to solver step"></select></label>
     </div>`;
@@ -126,13 +126,13 @@ export function mountWalkthrough(host: HTMLElement) {
       const tally = new Map<string, number[]>();
       walk.steps.forEach((step, i) => { const indices = tally.get(step.technique) ?? []; indices.push(i + 1); tally.set(step.technique, indices); });
       const body = get('.walk-summary tbody'); body.replaceChildren();
-      for (const [name, indices] of tally) {
+      const sortedTally = [...tally].sort(([nameA, a], [nameB, b]) =>
+        (stepScore(walk!.steps[a[0] - 1]) ?? Infinity) - (stepScore(walk!.steps[b[0] - 1]) ?? Infinity) || nameA.localeCompare(nameB));
+      for (const [name, indices] of sortedTally) {
         const row = document.createElement('tr'); const label = document.createElement('th'); label.scope = 'row'; label.textContent = name;
         const count = document.createElement('td'); const button = document.createElement('button'); button.className = 'walk-count'; button.textContent = String(indices.length); button.setAttribute('aria-label', `${name}: ${indices.length} uses, jump to first`);
-        button.addEventListener('click', () => { index = indices[0]; render(); }); count.append(button); const points = stepScore(walk.steps[indices[0] - 1]);
-        const perUse = document.createElement('td'); perUse.textContent = points === null ? 'Unscored' : '+' + points;
-        const total = document.createElement('td'); total.textContent = points === null ? '—' : String(points * indices.length);
-        row.append(label, count, perUse, total); body.append(row);
+        button.addEventListener('click', () => { index = indices[0]; render(); }); count.append(button);
+        row.append(label, count); body.append(row);
       }
       render();
     };

@@ -20,8 +20,7 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
       <article class="board-panel"><div class="panel-heading"><div><span class="step">01 / SOURCE</span><h2>Completed grid</h2></div><span class="pill">9 × 9</span></div><button id="copy-solution" class="copy-grid" disabled>Copy completed grid</button><span id="copy-solution-status" role="status"></span><div id="solution" class="grid" role="table" aria-label="Completed Sudoku grid"></div><p class="board-caption"><span class="caption-line"></span> Every row, column and box contains 1–9.</p></article>
       <article class="board-panel puzzle-panel"><div class="panel-heading"><div><span class="step">02 / TRANSFORMATION</span><h2 id="puzzle-title">Intersection sums</h2></div><span class="pill green">81 clues</span></div><button id="copy-transformed" class="copy-grid" disabled>Copy sums/products grid</button><span id="copy-transformed-status" role="status"></span><div id="puzzle" class="grid clue-grid" role="table" aria-label="Empty Intersection Sums puzzle"></div><p class="board-caption"><span class="caption-corner">Σ</span> Small clues. All 81 digits left for you to discover.</p></article>
     </section>
-    <section class="dig-section" aria-label="Dug puzzle generation"><article class="board-panel"><div class="panel-heading"><div><span class="step">03 / DIGGING</span><h2>Dug puzzle</h2></div><span id="given-count" class="pill green">— givens</span></div><div id="dug" class="grid clue-grid" role="table" aria-label="Dug puzzle"></div><p class="board-caption">Every generated puzzle has exactly one solution.</p></article><div class="dig-info"><h2>Find the essentials.</h2><p>Clues are tested in a random order. Every removal must preserve exactly one solution. Turn off Allow brute force to also require a complete logical solve.</p><p id="dig-status" role="status">Generate to begin digging.</p><p>Generation time: <strong id="elapsed">—</strong></p><progress id="dig-progress" max="81" value="0" aria-label="Clues tested"></progress><button id="cancel" hidden>Cancel generation</button><button id="copy-dug" disabled>Copy dug puzzle</button><p id="copy-status" role="status"></p><textarea id="copy-fallback" aria-label="Dug puzzle comma-separated clues" readonly hidden></textarea><p>Dual digging removes opposite cells together: RrCc and R(10−r)C(10−c). The centre cell is tested once.</p><p class="dig-note">Brute force is allowed by default; the puzzle may need search. With it turned off, fast digging retains clues whenever logic stalls.</p></div></section>
-    <section class="inspector" aria-label="Clue explanation"><span class="inspector-icon" aria-hidden="true">＋</span><div><h3>Follow a clue</h3><p id="explanation" aria-live="polite">Generate a puzzle, then select a sum to explore its neighbours.</p></div><span class="inspector-note">UP · DOWN · LEFT · RIGHT</span></section>
+    <section class="dig-section" aria-label="Dug puzzle generation"><article class="board-panel"><div class="panel-heading"><div><span class="step">03 / DIGGING</span><h2>Dug puzzle</h2></div><span id="given-count" class="pill green">— givens</span></div><div id="dug" class="grid clue-grid" role="table" aria-label="Dug puzzle"></div><p class="board-caption">Every generated puzzle has exactly one solution.</p></article><div class="dig-info"><h2>Find the essentials.</h2><p>Clues are tested in a random order. Every removal must preserve exactly one solution. Turn off Allow brute force to also require a complete logical solve.</p><p id="dig-status" role="status">Generate to begin digging.</p><p>Generation time: <strong id="elapsed">—</strong></p><progress id="dig-progress" max="81" value="0" aria-label="Clues tested"></progress><button id="cancel" hidden>Cancel generation</button><button id="copy-dug" disabled>Copy dug puzzle</button><p id="copy-status" role="status"></p><textarea id="copy-fallback" aria-label="Dug puzzle comma-separated clues" readonly hidden></textarea></div></section>
     <section id="walkthrough" class="walkthrough" aria-label="Solution walkthrough"></section>
     <footer><span>INTERSECTION SUMS/PRODUCTS SUDOKU</span><span>Classic solving engine from <a href="https://github.com/AImenes/sudokUI" target="_blank" rel="noreferrer">sudokUI ↗</a> · <a href="./LICENSE.txt">GPL-3.0</a></span></footer>
   </main>`;
@@ -39,7 +38,6 @@ let started = 0;
 const solutionElement = document.querySelector<HTMLDivElement>('#solution')!;
 const puzzleElement = document.querySelector<HTMLDivElement>('#puzzle')!;
 const dugElement = document.querySelector<HTMLDivElement>('#dug')!;
-const explanation = document.querySelector<HTMLParagraphElement>('#explanation')!;
 const walkthrough = mountWalkthrough(document.querySelector('#walkthrough')!);
 
 function renderGrid(element: HTMLDivElement, isClue: boolean, clues = puzzle?.clues as readonly (number | null)[] | undefined): void {
@@ -106,7 +104,6 @@ function inspect(index: number): void {
     });
     if (!grid.querySelector('button[tabindex="0"]')) grid.querySelector('button')?.setAttribute('tabindex', '0');
   }
-  explanation.textContent = `Row ${Math.floor(index / 9) + 1}, column ${index % 9 + 1}: ${neighbours.map(cell => puzzle!.solution[cell]).join(mode === 'sum' ? ' + ' : ' × ')} = ${puzzle.clues[index]}. ${neighbours.length} neighbours; the cell itself is excluded.`;
 }
 
 function updateModeText(): void {
@@ -115,11 +112,7 @@ function updateModeText(): void {
   document.querySelector('#puzzle-title')!.textContent = `Intersection ${plural}`;
   puzzleElement.setAttribute('aria-label', `Empty Intersection ${plural} puzzle`);
   document.querySelectorAll('#operation-symbol, .caption-corner').forEach(element => element.textContent = mode === 'sum' ? 'Σ' : 'Π');
-  document.querySelector('.inspector-icon')!.textContent = mode === 'sum' ? '＋' : '×';
   document.querySelector('#status')!.textContent = puzzle ? `Grid ${String(generation).padStart(2, '0')} generated · 81 ${mode} clues` : 'Ready when you are';
-  explanation.textContent = puzzle
-    ? `Select a ${mode} in the right grid to highlight its neighbours in the completed grid. Use arrow keys to move.`
-    : `Generate a puzzle, then select a ${mode} to explore its neighbours.`;
   if (activeCell >= 0) inspect(activeCell);
 }
 
