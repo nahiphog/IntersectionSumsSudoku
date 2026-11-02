@@ -39,7 +39,7 @@ Run the site with `npm run dev`; opening `index.html` directly with `file://` ca
 
 ## GitHub Pages deployment
 
-The `.github/workflows/pages.yml` workflow installs dependencies with `npm ci` from `package-lock.json`, runs the tests, checks TypeScript, and builds the static site on Node.js 24. Pushes to `main` deploy `dist/` through GitHub Pages; pull requests run build checks without deploying. Repository Settings → Pages must use **GitHub Actions** as the source.
+The `.github/workflows/pages.yml` workflow installs dependencies with `npm ci` from `package-lock.json`, runs core Sudoku and walkthrough tests, checks TypeScript, and builds the static site on Node.js 24. Pushes to `main` deploy `dist/` through GitHub Pages; pull requests run build checks without deploying. Repository Settings → Pages must use **GitHub Actions** as the source. The much slower exhaustive digging tests are available separately through the manual `.github/workflows/solver-regression.yml` workflow; `npm test` still runs all tests locally.
 
 `npm run build -- --mode github-pages` sets the correct `/IntersectionSumsSudoku/` asset and worker paths. Regular development builds keep `/` as their base. Application code, workers, and Vite configuration remain TypeScript; only the generated deployment assets are JavaScript. npm dependencies live in `package.json` and its lockfile, while `.github/dependabot.yml` checks npm and GitHub Actions dependencies monthly.
 

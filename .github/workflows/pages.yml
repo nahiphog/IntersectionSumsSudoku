@@ -27,7 +27,7 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
       - name: Test
-        run: npm test
+        run: npm test -- tests/puzzle.test.ts tests/walkthrough.test.ts
       - name: Check TypeScript and build
         run: npm run build -- --mode github-pages
       - name: Upload site
