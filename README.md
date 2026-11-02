@@ -71,3 +71,5 @@ All four routes are Vite multi-page entries, including direct navigation on GitH
 ## Temporary technique policy
 
 `src/techniquePolicy.ts` disables the sudokUI families Uniqueness, Colouring (Coloring), Chains & loops (Chains and Loops), ALS (Almost Locked Sets), Finned Fish, Complex Fish, and Miscellaneous, plus Turbot Fish. All solving flows and the Techniques tally catalogue use the same policy; imported engine files remain unchanged. Other categories, including Last Resort, retain their existing settings. Exact uniqueness checks remain enabled. The saved tally version changes so counts from the previous policy are not shown as current results.
+
+The walkthrough displays its technique tally beside the grid, above the current step explanation. Counts cover the full walkthrough and link to the first use of each technique; narrow screens stack the sidebar below the grid.
