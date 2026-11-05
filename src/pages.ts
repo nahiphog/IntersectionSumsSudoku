@@ -151,10 +151,13 @@ if (page === 'verify') {
     } catch (error) { status.textContent = (error as Error).message; }
   };
 } else if (page === 'simulation') {
-  controls.innerHTML = `<p>Generate dug puzzles and tally their remaining clue counts. Every accepted puzzle is uniquely solvable. Only samples meeting the clue cap are displayed; all completed trials count in the distribution.</p><fieldset><div class="lab-actions">${operation}<label>Trials <input id="trials" aria-label="Trials" type="number" min="1" max="1000000" value="10"></label><label>Sample clue cap <input id="cap" aria-label="Sample clue cap" type="number" min="0" max="81" value="25"></label><label>Digging <select id="digging"><option value="single">Single</option><option value="dual">Dual</option></select></label><label><input id="search" type="checkbox" checked> Allow brute force</label></div><button id="run-simulation" type="button">Run simulation</button></fieldset>`;
+  controls.innerHTML = `<p>Generate dug puzzles and tally their remaining clue counts. Every accepted puzzle is uniquely solvable. Only samples meeting the clue cap are displayed; all completed trials count in the distribution.</p><fieldset><div class="lab-actions">${operation}<label>Trials <select id="trials" aria-label="Trials">${[1,10,100,1000,10000,100000,1000000].map(n => `<option value="${n}"${n === 1000000 ? ' selected' : ''}>${n.toLocaleString('en-US')}</option>`).join('')}</select></label><label>Sample clue cap <input id="cap" aria-label="Sample clue cap" type="number" min="0" max="81"></label><label>Digging <select id="digging"><option value="single">Single</option><option value="dual">Dual</option></select></label><label><input id="search" type="checkbox" checked> Allow brute force</label></div><button id="run-simulation" type="button">Run simulation</button></fieldset>`;
+  const setDefaultCap = () => { get<HTMLInputElement>('#cap').value = mode() === 'product' ? '9' : '17'; };
+  get('#lab-mode').addEventListener('change', setDefaultCap);
+  setDefaultCap();
   get('#run-simulation').onclick = () => {
     try {
-      const trials = integer('#trials',1,1000000), cap = integer('#cap',0,81);
+      const trials = Number(get<HTMLSelectElement>('#trials').value), cap = integer('#cap',0,81);
       resetResults(); results.innerHTML = '<p id="simulation-summary" role="status">No completed trials yet.</p><h2>Clue-count distribution</h2><div id="histogram" aria-label="Clue-count distribution"></div><h2>Qualifying samples</h2><p>Showing the latest 11 qualifying grids.</p><div id="samples" class="lab-samples"></div>';
       let total = 0, qualified = 0, milliseconds = 0, cluesTotal = 0; const counts = new Map<number,number>();
       run({ task:'simulation',mode:mode(),trials,digging:get<HTMLSelectElement>('#digging').value as 'single'|'dual',allowSearch:get<HTMLInputElement>('#search').checked }, data => {
