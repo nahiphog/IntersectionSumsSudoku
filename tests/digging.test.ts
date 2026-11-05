@@ -1,12 +1,38 @@
 import { describe, it, expect, vi } from 'vitest';
 import { countVariantSolutions, VariantSolver } from '../src/variantSolver';
 import { solveWalkthrough } from '../src/walkthroughSolver';
+import * as walkthrough from '../src/walkthroughSolver';
 import { digPuzzle, isLogicallySolvableForDigging, diggingGroups, type DiggingMode } from '../src/digging';
 import { generatePuzzle, intersectionClues, type ClueMode } from '../src/puzzle';
 
 const seeded = () => { let seed = 42; return () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; }; };
 
 describe('variant uniqueness and digging', () => {
+  it('retries stalls only on changed boards and never retries proven ambiguity', () => {
+    const initial = generatePuzzle(seeded(), 'sum');
+    // Visit cells in row-major order. Cell 0 is indispensable, cell 1
+    // temporarily stalls until cell 2 is removed, and cell 80 always stalls.
+    const stalledStates: number[] = [];
+    const logic = vi.spyOn(walkthrough, 'solveWalkthrough').mockImplementation(clues => {
+      if (clues[80] === null) stalledStates.push(clues.filter(c => c !== null).length);
+      const stalled = clues[80] === null || (clues[1] === null && clues[2] !== null);
+      return { initial: { values: [], candidates: [] }, steps: [], searchSteps: 0,
+        status: stalled ? 'stalled' : 'solved' };
+    });
+    let ambiguousChecks = 0;
+    const exact = vi.spyOn(VariantSolver.prototype, 'countSolutions').mockImplementation(active => {
+      if (active && !active[0]) { ambiguousChecks++; return 2; }
+      return 1;
+    });
+    try {
+      const result = digPuzzle('sum', undefined, () => 0.999, initial, 'single', false);
+      expect(ambiguousChecks).toBe(1);
+      expect(stalledStates).toEqual([2, 1]);
+      expect(result.dugClues).toEqual(initial.clues.map((clue, cell) => cell === 0 || cell === 80 ? clue : null));
+    } finally {
+      logic.mockRestore(); exact.mockRestore();
+    }
+  });
   it('retains a stalled puzzle and never falls back to search in the generation profile', () => {
     const search = vi.spyOn(VariantSolver.prototype, 'solve');
     try {

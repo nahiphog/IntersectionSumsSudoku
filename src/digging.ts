@@ -44,21 +44,32 @@ export function digPuzzle(
       [order[i], order[j]] = [order[j], order[i]];
     }
     let givens = 81;
+    // Counts identify board states within this attempt: accepted removals only decrease givens.
+    const failedRemovals = diggingMode === 'single' && !allowBacktracking
+      ? new Map<number, number | 'multiple'>() : undefined;
     let removed: boolean;
     let pass = 0;
     do {
       removed = false;
       pass++;
       for (const [tested, cells] of order.entries()) {
-        if (!active[cells[0]]) continue;
+        const first = cells[0];
+        if (!active[first]) continue;
+        const failure = failedRemovals?.get(first);
+        if (failure === 'multiple' || failure === givens) continue;
         for (const cell of cells) active[cell] = false;
-        const candidate = puzzle.clues.map((clue, index) => active[index] ? clue : null);
         // Reject logical stalls before spending time on an exact uniqueness search.
-        if ((allowBacktracking || isLogicallySolvableForDigging(candidate, mode))
-          && solver.countSolutions(active) === 1) {
+        const logical = allowBacktracking || isLogicallySolvableForDigging(
+          puzzle.clues.map((clue, index) => active[index] ? clue : null), mode);
+        const solutions = logical ? solver.countSolutions(active) : undefined;
+        if (solutions === 1) {
           givens -= cells.length;
           removed = true;
-        } else for (const cell of cells) active[cell] = true;
+        } else {
+          if (solutions === 0) throw new Error('A clue removal excluded the known solution.');
+          failedRemovals?.set(first, solutions === 2 ? 'multiple' : givens);
+          for (const cell of cells) active[cell] = true;
+        }
         onProgress({ attempt, tested: tested + 1, total: order.length, givens, pass, phase: 'digging' });
       }
     } while (removed && !allowBacktracking);
