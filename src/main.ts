@@ -11,10 +11,8 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
   </header>
   <main>
     <section class="intro">
-      <div><p class="eyebrow">A DIFFERENT WAY TO SEE SUDOKU</p><h1>Every neighbour counts.</h1><p class="lead">A completed grid. Two ways to connect it.<br>Explore Intersection Sums/Products Sudoku.</p></div>
       <div class="generator-controls"><fieldset class="mode-toggle"><legend>Clue operation</legend><label><input type="radio" name="mode" value="sum" checked><span>Sum</span></label><label><input type="radio" name="mode" value="product"><span>Product</span></label></fieldset><fieldset class="mode-toggle"><legend>Digging algorithm</legend><label><input type="radio" name="digging" value="single" checked><span>Single</span></label><label><input type="radio" name="digging" value="dual"><span>Dual</span></label></fieldset><label class="generation-search"><input id="allow-backtracking" type="checkbox" checked> Allow brute force</label><button id="generate" class="generate"><span aria-hidden="true">↻</span> Generate</button></div>
     </section>
-    <section class="rule-strip" aria-label="Puzzle rules"><span class="rule-label">THE RULES</span><p id="rules"></p><div class="rule-cross" aria-hidden="true"><span></span><span>↑</span><span></span><span>←</span><span id="operation-symbol">Σ</span><span>→</span><span></span><span>↓</span><span></span></div></section>
     <div class="workspace-bar"><span><i class="status-dot"></i> GENERATION WORKSPACE</span><p id="status" role="status" aria-live="polite">Ready when you are</p></div>
     <section class="boards" aria-label="Sudoku generator">
       <article class="board-panel"><div class="panel-heading"><div><span class="step">01 / SOURCE</span><h2>Completed grid</h2></div><span class="pill">9 × 9</span></div><button id="copy-solution" class="copy-grid" disabled>Copy completed grid</button><span id="copy-solution-status" role="status"></span><div id="solution" class="grid" role="table" aria-label="Completed Sudoku grid"></div><p class="board-caption"><span class="caption-line"></span> Every row, column and box contains 1–9.</p></article>
@@ -108,7 +106,6 @@ function inspect(index: number): void {
 
 function updateModeText(): void {
   const plural = mode === 'sum' ? 'sums' : 'products';
-  document.querySelector('#rules')!.textContent = `Normal sudoku rules apply. A clue written in the upper-left corner of a cell gives the ${mode} of the digits in the cells orthogonally adjacent to that cell.`;
   document.querySelector('#puzzle-title')!.textContent = `Intersection ${plural}`;
   puzzleElement.setAttribute('aria-label', `Empty Intersection ${plural} puzzle`);
   document.querySelectorAll('#operation-symbol, .caption-corner').forEach(element => element.textContent = mode === 'sum' ? 'Σ' : 'Π');
