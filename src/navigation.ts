@@ -17,7 +17,7 @@ export function mountNavigation() {
 
   const dialog = document.createElement('dialog');
   dialog.className = 'about-dialog'; dialog.setAttribute('aria-labelledby', 'about-title');
-  dialog.innerHTML = `<h2 id="about-title">About</h2><p>The rules: Normal sudoku rules apply. A clue written in the upper-left corner of a cell gives the sum of the digits in the cells orthogonally adjacent to that cell.</p><form method="dialog"><button class="walk-button" autofocus>Close</button></form>`;
+  dialog.innerHTML = `<h2 id="about-title">About</h2><p>Normal Sudoku rules apply. Fill every row, column, and 3 × 3 box with the digits 1–9, each appearing exactly once.</p><p>A clue written in the upper-left corner of a cell refers to its orthogonally adjacent cells—the cells immediately above, below, left, and right. Only neighbours within the grid are included. The cell containing the clue is not included.</p><p><strong>Sum mode</strong> — The clue gives the sum of the digits in those neighbouring cells.</p><p><strong>Product mode</strong> — The clue gives the product of the digits in those neighbouring cells.</p><form method="dialog"><button class="walk-button" autofocus>Close</button></form>`;
   document.body.append(dialog);
   const about = header.querySelector<HTMLButtonElement>('.about-button')!;
   about.addEventListener('click', () => dialog.showModal());
