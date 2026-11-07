@@ -61,7 +61,21 @@ describe('variant uniqueness and digging', () => {
       const random = seeded();
       const initial = generatePuzzle(random, mode);
       const clues = [...initial.clues];
-      const result = digPuzzle(mode, () => {}, random, initial, diggingMode, false);
+      const snapshots: (number | null)[][] = [];
+      const result = digPuzzle(mode, progress => {
+        if (progress.dugClues) {
+          expect(progress.dugClues.filter(c => c !== null)).toHaveLength(progress.givens);
+          snapshots.push(progress.dugClues);
+        }
+      }, random, initial, diggingMode, false);
+      expect(snapshots[0]).toEqual(initial.clues);
+      expect(snapshots.at(-1)).toEqual(result.dugClues);
+      for (const snapshot of snapshots) {
+        // Every live snapshot retains all final clues, so the final uniqueness
+        // proof also covers the states available to the Cancel button.
+        expect(snapshot).toHaveLength(81);
+        result.dugClues.forEach((clue, cell) => { if (clue !== null) expect(snapshot[cell]).toBe(clue); });
+      }
       expect(initial.clues).toEqual(clues);
       expect(result.clues).toEqual(intersectionClues(result.solution, mode));
       expect(result.dugClues.filter(c => c !== null).length).toBeLessThan(81);

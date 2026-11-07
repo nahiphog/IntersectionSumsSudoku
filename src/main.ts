@@ -14,12 +14,12 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
       <div class="generator-controls"><fieldset class="mode-toggle"><legend>Clue operation</legend><label><input type="radio" name="mode" value="sum" checked><span>Sum</span></label><label><input type="radio" name="mode" value="product"><span>Product</span></label></fieldset><fieldset class="mode-toggle"><legend>Digging algorithm</legend><label><input type="radio" name="digging" value="single" checked><span>Single</span></label><label><input type="radio" name="digging" value="dual"><span>Dual</span></label></fieldset><label class="generation-search"><input id="allow-backtracking" type="checkbox" checked> Allow brute force</label><button id="generate" class="generate"><span aria-hidden="true">↻</span> Generate</button></div>
     </section>
     <div class="workspace-bar"><span><i class="status-dot"></i> GENERATION WORKSPACE</span><p id="status" role="status" aria-live="polite">Ready when you are</p></div>
+    <section class="dig-section" aria-label="Dug puzzle generation"><article class="board-panel"><div class="panel-heading"><div><span class="step">03 / DIGGING</span><h2>Dug puzzle</h2></div><span id="given-count" class="pill green">— givens</span></div><div id="dug" class="grid clue-grid" role="table" aria-label="Dug puzzle"></div><p class="board-caption">Only confirmed clue removals are kept.</p></article><div class="dig-info"><p id="dig-status" role="status">Generate to begin digging.</p><p>Generation time: <strong id="elapsed">—</strong></p><p id="dig-rating" class="walk-rating" role="status">Difficulty: —</p><p id="dig-outcome">Digging: not started</p><button id="cancel" hidden>Cancel generation</button><button id="copy-dug" disabled>Copy dug puzzle</button><p id="copy-status" role="status"></p><textarea id="copy-fallback" aria-label="Dug puzzle comma-separated clues" readonly hidden></textarea></div></section>
+    <section id="walkthrough" class="walkthrough" aria-label="Solution walkthrough"></section>
     <section class="boards" aria-label="Sudoku generator">
       <article class="board-panel"><div class="panel-heading"><div><span class="step">01 / SOURCE</span><h2>Completed grid</h2></div><span class="pill">9 × 9</span></div><button id="copy-solution" class="copy-grid" disabled>Copy completed grid</button><span id="copy-solution-status" role="status"></span><div id="solution" class="grid" role="table" aria-label="Completed Sudoku grid"></div><p class="board-caption"><span class="caption-line"></span> Every row, column and box contains 1–9.</p></article>
       <article class="board-panel puzzle-panel"><div class="panel-heading"><div><span class="step">02 / TRANSFORMATION</span><h2 id="puzzle-title">Intersection sums</h2></div><span class="pill green">81 clues</span></div><button id="copy-transformed" class="copy-grid" disabled>Copy sums/products grid</button><span id="copy-transformed-status" role="status"></span><div id="puzzle" class="grid clue-grid" role="table" aria-label="Empty Intersection Sums puzzle"></div><p class="board-caption"><span class="caption-corner">Σ</span> Small clues. All 81 digits left for you to discover.</p></article>
     </section>
-    <section class="dig-section" aria-label="Dug puzzle generation"><article class="board-panel"><div class="panel-heading"><div><span class="step">03 / DIGGING</span><h2>Dug puzzle</h2></div><span id="given-count" class="pill green">— givens</span></div><div id="dug" class="grid clue-grid" role="table" aria-label="Dug puzzle"></div><p class="board-caption">Every generated puzzle has exactly one solution.</p></article><div class="dig-info"><h2>Find the essentials.</h2><p>Clues are tested in a random order. Every removal must preserve exactly one solution. Turn off Allow brute force to also require a complete logical solve.</p><p id="dig-status" role="status">Generate to begin digging.</p><p>Generation time: <strong id="elapsed">—</strong></p><progress id="dig-progress" max="81" value="0" aria-label="Clues tested"></progress><button id="cancel" hidden>Cancel generation</button><button id="copy-dug" disabled>Copy dug puzzle</button><p id="copy-status" role="status"></p><textarea id="copy-fallback" aria-label="Dug puzzle comma-separated clues" readonly hidden></textarea></div></section>
-    <section id="walkthrough" class="walkthrough" aria-label="Solution walkthrough"></section>
     <footer><span>INTERSECTION SUMS/PRODUCTS SUDOKU</span><span>Classic solving engine from <a href="https://github.com/AImenes/sudokUI" target="_blank" rel="noreferrer">sudokUI ↗</a> · <a href="./LICENSE.txt">GPL-3.0</a></span></footer>
   </main>`;
 
@@ -29,6 +29,7 @@ let diggingMode: DiggingMode = 'single';
 let allowBacktracking = true;
 let generation = 0;
 let activeCell = -1;
+let verified = false;
 let dugClues: (number | null)[] | undefined;
 let worker: Worker | undefined;
 let timer: ReturnType<typeof setInterval> | undefined;
@@ -36,7 +37,11 @@ let started = 0;
 const solutionElement = document.querySelector<HTMLDivElement>('#solution')!;
 const puzzleElement = document.querySelector<HTMLDivElement>('#puzzle')!;
 const dugElement = document.querySelector<HTMLDivElement>('#dug')!;
-const walkthrough = mountWalkthrough(document.querySelector('#walkthrough')!);
+const walkthrough = mountWalkthrough(document.querySelector('#walkthrough')!, rating => {
+  document.querySelector('#dig-rating')!.textContent = rating.complete
+    ? 'Difficulty: ' + rating.level + ' · ' + rating.score + ' points'
+    : 'Difficulty: not fully rated · subtotal ' + rating.score + ' points';
+});
 
 function renderGrid(element: HTMLDivElement, isClue: boolean, clues = puzzle?.clues as readonly (number | null)[] | undefined): void {
   element.replaceChildren();
@@ -139,7 +144,9 @@ function startDigging(initial?: IntersectionPuzzle): void {
   started = performance.now();
   generation++;
   activeCell = -1;
-  dugClues = undefined;
+  dugClues = undefined; verified = false;
+  document.querySelector('#dig-rating')!.textContent = 'Difficulty: pending';
+  document.querySelector('#dig-outcome')!.textContent = 'Digging: in progress';
   for (const id of ['solution', 'transformed']) {
     document.querySelector<HTMLButtonElement>('#copy-' + id)!.disabled = true;
     document.querySelector('#copy-' + id + '-status')!.textContent = '';
@@ -150,8 +157,6 @@ function startDigging(initial?: IntersectionPuzzle): void {
   renderGrid(dugElement, true, Array(81).fill(null));
   document.querySelector('#given-count')!.textContent = '— givens';
   document.querySelector('#dig-status')!.textContent = allowBacktracking ? 'Checking the full puzzle for uniqueness…' : 'Checking the full puzzle for uniqueness and logical solvability…';
-  document.querySelector<HTMLProgressElement>('#dig-progress')!.value = 0;
-  document.querySelector<HTMLProgressElement>('#dig-progress')!.max = diggingMode === 'dual' ? 41 : 81;
   document.querySelector<HTMLButtonElement>('#generate')!.disabled = true;
   document.querySelector<HTMLButtonElement>('#cancel')!.hidden = false;
   const updateTime = () => { document.querySelector('#elapsed')!.textContent = `${((performance.now() - started) / 1000).toFixed(2)} s`; };
@@ -163,6 +168,7 @@ function startDigging(initial?: IntersectionPuzzle): void {
     if (worker !== current) return;
     updateTime();
     stopWorker();
+    document.querySelector('#dig-outcome')!.textContent = 'Digging: halted by error';
     document.querySelector('#dig-status')!.textContent = `Generation failed: ${message} Try Generate again.`;
   };
   current.onerror = event => fail(event.message);
@@ -173,6 +179,9 @@ function startDigging(initial?: IntersectionPuzzle): void {
     if (data.type === 'progress') {
       if (data.puzzle) {
         puzzle = data.puzzle;
+        verified = false; dugClues = [...puzzle.clues];
+        renderGrid(dugElement, true, dugClues);
+        document.querySelector('#given-count')!.textContent = '81 givens';
         document.querySelector<HTMLButtonElement>('#copy-solution')!.disabled = false;
         document.querySelector<HTMLButtonElement>('#copy-transformed')!.disabled = false;
         renderGrid(solutionElement, false);
@@ -180,15 +189,21 @@ function startDigging(initial?: IntersectionPuzzle): void {
         updateModeText();
       }
       const { attempt, tested, givens, phase, pass, total } = data.progress;
+      if (data.progress.dugClues) {
+        verified = true; dugClues = data.progress.dugClues;
+        renderGrid(dugElement, true, dugClues);
+        document.querySelector('#given-count')!.textContent = givens + ' givens';
+      }
       document.querySelector('#dig-status')!.textContent = phase === 'checking'
         ? `Attempt ${attempt}: checking all 81 clues for uniqueness${allowBacktracking ? '' : ' and logical solvability'}…`
         : `Attempt ${attempt}: pass ${pass}: tested ${tested} / ${total} ${diggingMode === 'dual' ? 'pairs/centre' : 'cells'} · ${givens} remaining`;
-      document.querySelector<HTMLProgressElement>('#dig-progress')!.value = tested;
     } else if (data.type === 'complete') {
+      verified = true;
+      document.querySelector('#dig-outcome')!.textContent = 'Digging: completed (not halted)';
+      document.querySelector('#dig-rating')!.textContent = 'Difficulty: calculating…';
       puzzle = data.result;
       dugClues = data.result.dugClues;
       document.querySelector<HTMLButtonElement>('#copy-dug')!.disabled = false;
-      document.querySelector<HTMLProgressElement>('#dig-progress')!.value = diggingMode === 'dual' ? 41 : 81;
       renderGrid(dugElement, true, dugClues);
       document.querySelector('#given-count')!.textContent = `${dugClues.filter(clue => clue !== null).length} givens`;
       document.querySelector('#dig-status')!.textContent = `Complete · unique solution · ${allowBacktracking ? 'brute force allowed' : 'solvable without brute force'} · ${data.result.attempts} attempt(s)`;
@@ -203,7 +218,17 @@ function startDigging(initial?: IntersectionPuzzle): void {
 document.querySelector<HTMLButtonElement>('#generate')!.addEventListener('click', () => startDigging());
 document.querySelector<HTMLButtonElement>('#cancel')!.addEventListener('click', () => {
   stopWorker();
-  document.querySelector('#dig-status')!.textContent = 'Generation cancelled. No final dug puzzle produced.';
+  document.querySelector('#elapsed')!.textContent = ((performance.now() - started) / 1000).toFixed(2) + ' s';
+  document.querySelector('#dig-outcome')!.textContent = 'Digging: halted by user';
+  document.querySelector('#dig-status')!.textContent = verified
+    ? 'Stopped. The remaining clues have a unique solution.'
+    : 'Stopped before the full puzzle was verified. Uniqueness is not yet confirmed.';
+  if (dugClues) {
+    renderGrid(dugElement, true, dugClues);
+    document.querySelector<HTMLButtonElement>('#copy-dug')!.disabled = false;
+    document.querySelector('#dig-rating')!.textContent = 'Difficulty: calculating…';
+    walkthrough.load(dugClues, mode, allowBacktracking);
+  } else document.querySelector('#dig-rating')!.textContent = 'Difficulty: unavailable (no puzzle generated)';
 });
 
 renderGrid(solutionElement, false);

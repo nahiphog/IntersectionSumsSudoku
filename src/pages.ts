@@ -1,17 +1,17 @@
-import { ACTIVE_LOGICAL_ORDER, BRUTE_FORCE_NAME, BRUTE_FORCE_SCORE, POLICY_NOTE } from './techniquePolicy';
+import { ACTIVE_LOGICAL_ORDER, BRUTE_FORCE_NAME, BRUTE_FORCE_SCORE } from './techniquePolicy';
 import './style.css';
 import { mountNavigation } from './navigation';
 import { mountWalkthrough } from './walkthrough';
 import { parseClues } from './lab';
 import { serializeClues, serializeSolution, type ClueMode } from './puzzle';
 import { TECHS } from './vendor/sudokui/engine/ratings';
-import { TALLY_KEY, saveTally } from './tally';
+import { saveTally } from './tally';
 import { rateWalkthrough } from './difficulty';
 import type { Walkthrough } from './walkthroughSolver';
 import type { LabRequest } from './lab.worker';
 
 const page = location.pathname.split('/').filter(Boolean).filter(p => p !== 'index.html').pop();
-const titles: Record<string, string> = { techniques: 'Techniques tally', 'custom-build': 'Custom Build', simulation: 'Simulation', verify: 'Verify' };
+const titles: Record<string, string> = { techniques: 'All techniques', 'custom-build': 'Custom Build', simulation: 'Simulation', verify: 'Verify' };
 const title = titles[page ?? ''] ?? 'Verify';
 document.title = `${title} — Intersection Sums/Products Sudoku`;
 document.querySelector('#app')!.innerHTML = `<header class="masthead"><a class="brand" href="${import.meta.env.BASE_URL}">✣ Intersection Sums/Products Sudoku</a></header><main class="lab-page"><p class="eyebrow">PUZZLE LABORATORY</p><h1>${title}</h1><div id="page-controls"></div><p id="lab-status" role="status">Ready.</p><button id="lab-stop" class="walk-button" hidden>Stop</button><section id="lab-results" aria-label="Results"></section><section id="lab-walk"></section></main>`;
@@ -172,30 +172,21 @@ if (page === 'verify') {
     } catch (error) { status.textContent = (error as Error).message; }
   };
 } else {
-  controls.innerHTML = '<p>Technique counts from the latest completed or partial walkthrough in this browser, alongside the active solver catalogue. Generating or verifying a puzzle updates this tally.</p><button id="refresh-tally" type="button">Refresh tally</button><button id="clear-tally" type="button">Clear saved tally</button>';
-  function renderTally() {
-    results.replaceChildren();
-    let rows: {name:string;count:number;points:number|null}[] = [];
-    try {
-      const saved = JSON.parse(localStorage.getItem(TALLY_KEY) ?? 'null');
-      if (saved && Array.isArray(saved.rows)) { rows = saved.rows.filter((r: {name:unknown;count:unknown})=>typeof r.name==='string' && Number.isInteger(r.count)); status.textContent = `Latest ${saved.mode} walkthrough · ${saved.status} · ${new Date(saved.date).toLocaleString()}`; }
-      else status.textContent = 'No saved walkthrough yet. Generate or verify a puzzle first.';
-    } catch { status.textContent = 'Saved tally unavailable. Generate or verify a puzzle to create one.'; }
-    const catalogue = [
-      {name:'Intersection sum',score:10,level:'Variant'}, {name:'Intersection product',score:10,level:'Variant'}, {name:'Combined sum equations',score:10,level:'Variant'},
-      ...ACTIVE_LOGICAL_ORDER.map(t=>TECHS[t]), {name:BRUTE_FORCE_NAME,score:BRUTE_FORCE_SCORE,level:'Extreme'},
-    ];
-    const table = document.createElement('table'); table.className = 'lab-table'; table.innerHTML = '<caption>Active techniques and latest walkthrough tally</caption><thead><tr><th>Technique</th><th>Level</th><th>Points/use</th><th>Uses</th><th>Total</th></tr></thead>';
-    const body = document.createElement('tbody'); let totalUses=0,totalScore=0;
-    for (const info of catalogue) {
-      const count = rows.find(r=>r.name===info.name)?.count ?? 0; totalUses+=count; totalScore+=count*(info.score??0);
-      const tr = document.createElement('tr');
-      for(const value of [info.name,info.level,info.score===null?'Unscored':`+${info.score}`,count,info.score===null?'—':count*info.score]) {const td=document.createElement('td');td.textContent=String(value);tr.append(td);} body.append(tr);
+  status.hidden = true;
+  const catalogue = [
+    {name:'Intersection sum',score:10}, {name:'Intersection product',score:10}, {name:'Combined sum equations',score:10},
+    ...ACTIVE_LOGICAL_ORDER.map(t => TECHS[t]), {name:BRUTE_FORCE_NAME,score:BRUTE_FORCE_SCORE},
+  ].filter(info => info.score === null || info.score < 400 || info.score > 800)
+    .sort((a,b) => (a.score ?? Infinity) - (b.score ?? Infinity) || a.name.localeCompare(b.name));
+  const table = document.createElement('table'); table.className = 'lab-table';
+  table.innerHTML = '<thead><tr><th scope="col">Technique</th><th scope="col">Points</th></tr></thead>';
+  const body = document.createElement('tbody');
+  for (const info of catalogue) {
+    const row = document.createElement('tr');
+    for (const value of [info.name, info.score === null ? 'Unscored' : '+' + info.score]) {
+      const cell = document.createElement('td'); cell.textContent = value; row.append(cell);
     }
-    table.append(body); const summary=document.createElement('p');summary.textContent=`${totalUses} recorded steps · ${totalScore} points. Brute force adds 10000 per use. ${POLICY_NOTE}`;
-    results.append(summary,table);
+    body.append(row);
   }
-  get('#refresh-tally').onclick=renderTally;
-  get('#clear-tally').onclick=()=>{try{localStorage.removeItem(TALLY_KEY);}catch{}renderTally();};
-  renderTally();
+  table.append(body); results.append(table);
 }

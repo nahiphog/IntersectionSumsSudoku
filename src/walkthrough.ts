@@ -6,7 +6,7 @@ import type { ExplainedStep, Walkthrough } from './walkthroughSolver';
 
 const position = (cell: number) => `r${Math.floor(cell / 9) + 1}c${cell % 9 + 1}`;
 
-export function mountWalkthrough(host: HTMLElement) {
+export function mountWalkthrough(host: HTMLElement, onRating?: (rating: ReturnType<typeof rateWalkthrough>) => void) {
   host.innerHTML = `
     <div class="walk-heading"><div><p class="step">04 / SOLVING</p><h2>Solution walkthrough</h2></div><button class="walk-button" data-action="solve" disabled>Solve step by step</button></div>
     <p class="walk-status" role="status">Generate a dug puzzle to begin.</p>
@@ -124,6 +124,7 @@ export function mountWalkthrough(host: HTMLElement) {
       solveButton.textContent = 'Rebuild walkthrough';
       status.textContent = `${walk.status === 'solved' ? 'Solved' : 'Logic stalled — partial walkthrough'} · ${walk.steps.length} steps · ${walk.searchSteps} brute-force · ${((performance.now() - started) / 1000).toFixed(2)} s`;
       const rating = rateWalkthrough(walk);
+      onRating?.(rating);
       display('rating', rating.complete ? 'Difficulty: ' + rating.level + ' · ' + rating.score + ' points' : 'Difficulty: ' + (walk.searchSteps ? 'brute force used' : 'not yet rated') + ' · subtotal: ' + rating.score + ' points');
       range.max = String(walk.steps.length); jump.replaceChildren();
       ['Initial candidates', ...walk.steps.map(s => s.technique)].forEach((name, i) => { const option = document.createElement('option'); option.value = String(i); option.textContent = `${i}. ${name}`; jump.append(option); });

@@ -18,6 +18,7 @@ export interface DigProgress {
   total?: number;
   givens: number;
   phase: 'checking' | 'digging';
+  dugClues?: (number | null)[];
 }
 export interface DugPuzzle extends IntersectionPuzzle {
   dugClues: (number | null)[];
@@ -38,6 +39,7 @@ export function digPuzzle(
     const solver = new VariantSolver(puzzle.clues, mode, puzzle.solution);
     if ((!allowBacktracking && !isLogicallySolvableForDigging(puzzle.clues, mode)) || solver.countSolutions() !== 1) continue;
     const active = Array<boolean>(81).fill(true);
+    onProgress({ attempt, tested: 0, total: diggingMode === 'dual' ? 41 : 81, pass: 1, givens: 81, phase: 'digging', dugClues: [...puzzle.clues] });
     const order = diggingGroups(diggingMode);
     for (let i = order.length - 1; i > 0; i--) {
       const j = Math.floor(random() * (i + 1));
@@ -70,7 +72,7 @@ export function digPuzzle(
           failedRemovals?.set(first, solutions === 2 ? 'multiple' : givens);
           for (const cell of cells) active[cell] = true;
         }
-        onProgress({ attempt, tested: tested + 1, total: order.length, givens, pass, phase: 'digging' });
+        onProgress({ attempt, tested: tested + 1, total: order.length, givens, pass, phase: 'digging', dugClues: puzzle.clues.map((clue, cell) => active[cell] ? clue : null) });
       }
     } while (removed && !allowBacktracking);
     // Recheck retained clues: a deterministic logical strategy need not behave
