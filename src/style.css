@@ -29,3 +29,5 @@
 .grid[hidden]{display:none}.grid-toggle{display:block;margin:12px 0}
 
 #dug{width:calc(50% - 40px)}#dug .clue{font-size:min(12px,32cqw)}.generation-summary{display:flex;justify-content:flex-end;align-items:center;gap:20px;flex-wrap:wrap;padding:16px 20px;background:#eaf1e4;border:1px solid #c9d3c0;border-radius:8px}.generation-summary p{margin:0;font-size:clamp(20px,2.5vw,28px);font-weight:700;color:#263c34}@media(max-width:760px){#dug{width:50%}.generation-summary{justify-content:flex-start}}
+
+.generation-action{margin-left:auto;text-align:center}.generation-action .generate{width:100%;margin:0}.generation-action p{margin:8px 0 0;font-size:14px;color:#61735f}@media(max-width:760px){.generation-action{width:100%;margin-left:0}}
