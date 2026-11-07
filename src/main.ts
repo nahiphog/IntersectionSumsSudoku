@@ -14,11 +14,11 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
       <div class="generator-controls"><fieldset class="mode-toggle"><legend>Clue operation</legend><label><input type="radio" name="mode" value="sum" checked><span>Sum</span></label><label><input type="radio" name="mode" value="product"><span>Product</span></label></fieldset><fieldset class="mode-toggle"><legend>Digging algorithm</legend><label><input type="radio" name="digging" value="single" checked><span>Single</span></label><label><input type="radio" name="digging" value="dual"><span>Dual</span></label></fieldset><label class="generation-search"><input id="allow-backtracking" type="checkbox" checked> Allow brute force</label><button id="generate" class="generate"><span aria-hidden="true">↻</span> Generate</button></div>
     </section>
     <div class="workspace-bar"><span><i class="status-dot"></i> GENERATION WORKSPACE</span><p id="status" role="status" aria-live="polite">Ready when you are</p></div>
-    <section class="dig-section" aria-label="Dug puzzle generation"><article class="board-panel"><div class="panel-heading"><div><span class="step">03 / DIGGING</span><h2>Dug puzzle</h2></div><span id="given-count" class="pill green">— givens</span></div><div id="dug" class="grid clue-grid" role="table" aria-label="Dug puzzle"></div><p class="board-caption">Only confirmed clue removals are kept.</p></article><div class="dig-info"><p id="dig-status" role="status">Generate to begin digging.</p><p>Generation time: <strong id="elapsed">—</strong></p><p id="dig-rating" class="walk-rating" role="status">Difficulty: —</p><p id="dig-outcome">Digging: not started</p><button id="cancel" hidden>Cancel generation</button><button id="copy-dug" disabled>Copy dug puzzle</button><p id="copy-status" role="status"></p><textarea id="copy-fallback" aria-label="Dug puzzle comma-separated clues" readonly hidden></textarea></div></section>
+    <section class="dig-section" aria-label="Dug puzzle generation"><article class="board-panel"><div class="panel-heading"><div><span class="step">03 / DIGGING</span><h2>Dug puzzle</h2></div><span id="given-count" class="pill green">— givens</span></div><div id="dug" class="grid clue-grid" role="table" aria-label="Dug puzzle"></div><p class="board-caption">Only confirmed clue removals are kept.</p></article><div class="dig-info"><p id="dig-status" role="status">Generate to begin digging.</p><p>Generation time: <strong id="elapsed">—</strong></p><p id="dig-rating" class="walk-rating" role="status">Difficulty: —</p><p id="dig-outcome">Digging: not started</p><button id="copy-dug" disabled>Copy dug puzzle</button><p id="copy-status" role="status"></p><textarea id="copy-fallback" aria-label="Dug puzzle comma-separated clues" readonly hidden></textarea></div></section>
     <section id="walkthrough" class="walkthrough" aria-label="Solution walkthrough"></section>
     <section class="boards" aria-label="Sudoku generator">
-      <article class="board-panel"><div class="panel-heading"><div><span class="step">01 / SOURCE</span><h2>Completed grid</h2></div><span class="pill">9 × 9</span></div><button id="copy-solution" class="copy-grid" disabled>Copy completed grid</button><span id="copy-solution-status" role="status"></span><div id="solution" class="grid" role="table" aria-label="Completed Sudoku grid"></div><p class="board-caption"><span class="caption-line"></span> Every row, column and box contains 1–9.</p></article>
-      <article class="board-panel puzzle-panel"><div class="panel-heading"><div><span class="step">02 / TRANSFORMATION</span><h2 id="puzzle-title">Intersection sums</h2></div><span class="pill green">81 clues</span></div><button id="copy-transformed" class="copy-grid" disabled>Copy sums/products grid</button><span id="copy-transformed-status" role="status"></span><div id="puzzle" class="grid clue-grid" role="table" aria-label="Empty Intersection Sums puzzle"></div><p class="board-caption"><span class="caption-corner">Σ</span> Small clues. All 81 digits left for you to discover.</p></article>
+      <article class="board-panel"><div class="panel-heading"><div><span class="step">01 / SOURCE</span><h2>Completed grid</h2></div><span class="pill">9 × 9</span></div><button id="copy-solution" class="copy-grid" disabled>Copy completed grid</button><span id="copy-solution-status" role="status"></span><button type="button" class="walk-button grid-toggle" aria-controls="solution" aria-expanded="false">Expand grid</button><div id="solution" hidden class="grid" role="table" aria-label="Completed Sudoku grid"></div><p class="board-caption"><span class="caption-line"></span> Every row, column and box contains 1–9.</p></article>
+      <article class="board-panel puzzle-panel"><div class="panel-heading"><div><span class="step">02 / TRANSFORMATION</span><h2 id="puzzle-title">Intersection sums</h2></div><span class="pill green">81 clues</span></div><button id="copy-transformed" class="copy-grid" disabled>Copy sums/products grid</button><span id="copy-transformed-status" role="status"></span><button type="button" class="walk-button grid-toggle" aria-controls="puzzle" aria-expanded="false">Expand grid</button><div id="puzzle" hidden class="grid clue-grid" role="table" aria-label="Empty Intersection Sums puzzle"></div><p class="board-caption"><span class="caption-corner">Σ</span> Small clues. All 81 digits left for you to discover.</p></article>
     </section>
     <footer><span>INTERSECTION SUMS/PRODUCTS SUDOKU</span><span>Classic solving engine from <a href="https://github.com/AImenes/sudokUI" target="_blank" rel="noreferrer">sudokUI ↗</a> · <a href="./LICENSE.txt">GPL-3.0</a></span></footer>
   </main>`;
@@ -134,8 +134,7 @@ function stopWorker(): void {
   worker?.terminate();
   worker = undefined;
   clearInterval(timer);
-  document.querySelector<HTMLButtonElement>('#generate')!.disabled = false;
-  document.querySelector<HTMLButtonElement>('#cancel')!.hidden = true;
+  document.querySelector<HTMLButtonElement>('#generate')!.textContent = 'Generate';
 }
 
 function startDigging(initial?: IntersectionPuzzle): void {
@@ -157,8 +156,7 @@ function startDigging(initial?: IntersectionPuzzle): void {
   renderGrid(dugElement, true, Array(81).fill(null));
   document.querySelector('#given-count')!.textContent = '— givens';
   document.querySelector('#dig-status')!.textContent = allowBacktracking ? 'Checking the full puzzle for uniqueness…' : 'Checking the full puzzle for uniqueness and logical solvability…';
-  document.querySelector<HTMLButtonElement>('#generate')!.disabled = true;
-  document.querySelector<HTMLButtonElement>('#cancel')!.hidden = false;
+  document.querySelector<HTMLButtonElement>('#generate')!.textContent = 'Cancel generation';
   const updateTime = () => { document.querySelector('#elapsed')!.textContent = `${((performance.now() - started) / 1000).toFixed(2)} s`; };
   updateTime();
   timer = setInterval(updateTime, 100);
@@ -215,8 +213,8 @@ function startDigging(initial?: IntersectionPuzzle): void {
   current.postMessage({ mode, initial, diggingMode, allowBacktracking });
 }
 
-document.querySelector<HTMLButtonElement>('#generate')!.addEventListener('click', () => startDigging());
-document.querySelector<HTMLButtonElement>('#cancel')!.addEventListener('click', () => {
+document.querySelector<HTMLButtonElement>('#generate')!.addEventListener('click', () => {
+  if (!worker) { startDigging(); return; }
   stopWorker();
   document.querySelector('#elapsed')!.textContent = ((performance.now() - started) / 1000).toFixed(2) + ' s';
   document.querySelector('#dig-outcome')!.textContent = 'Digging: halted by user';
@@ -265,5 +263,14 @@ function bindCopy(id: string, statusId: string, getText: () => string | undefine
 bindCopy('#copy-dug', '#copy-status', () => dugClues && serializeClues(dugClues), 'Copied 81 comma-separated clues.');
 bindCopy('#copy-solution', '#copy-solution-status', () => puzzle && serializeSolution(puzzle.solution), 'Copied 81 digits.');
 bindCopy('#copy-transformed', '#copy-transformed-status', () => puzzle && serializeClues(puzzle.clues), 'Copied 81 comma-separated clues.');
+
+document.querySelectorAll<HTMLButtonElement>('.grid-toggle').forEach(button => {
+  const grid = document.getElementById(button.getAttribute('aria-controls')!)!;
+  button.addEventListener('click', () => {
+    grid.hidden = !grid.hidden;
+    button.setAttribute('aria-expanded', String(!grid.hidden));
+    button.textContent = grid.hidden ? 'Expand grid' : 'Hide grid';
+  });
+});
 
 mountNavigation();

@@ -25,3 +25,5 @@
 @media(max-width:760px){.masthead{grid-template-columns:minmax(0,1fr) minmax(0,2fr) minmax(0,1fr);gap:8px;padding:12px}.masthead .brand{font-size:11px;gap:6px}.brand-mark{font-size:26px}.header-navigation select,.about-button{font-size:11px;padding:8px 4px}.generator-controls{align-items:stretch}.generator-controls .generate{margin-left:0}.generator-controls .mode-toggle{flex:1}.generator-controls .generation-search{width:100%}}
 
 .masthead{position:sticky;top:0;z-index:100;background:#f7f8f4;box-shadow:0 2px 8px #243b2910}
+
+.grid[hidden]{display:none}.grid-toggle{display:block;margin:12px 0}
