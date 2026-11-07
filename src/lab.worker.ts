@@ -8,7 +8,7 @@ import { rateWalkthrough } from './difficulty';
 export type LabRequest =
   | { task: 'verify'; mode: ClueMode; clues: (number | null)[] }
   | { task: 'custom'; mode: ClueMode; selected: number[]; min: number; max: number; attempts: number }
-  | { task: 'simulation'; mode: ClueMode; trials: number; digging: DiggingMode; allowSearch: boolean };
+  | { task: 'simulation'; mode: ClueMode; trials: number; digging: DiggingMode; allowSearch: boolean; rateDifficulty?: boolean };
 
 self.onmessage = ({ data }: MessageEvent<LabRequest>) => {
   try {
@@ -32,7 +32,12 @@ self.onmessage = ({ data }: MessageEvent<LabRequest>) => {
       for (let trial = 1; trial <= data.trials; trial++) {
         const started = performance.now();
         const puzzle = digPuzzle(data.mode, progress => postMessage({ type: 'progress', message: `Trial ${trial} / ${data.trials}: ${progress.phase}, ${progress.givens} clues remaining…` }), Math.random, undefined, data.digging, data.allowSearch);
-        postMessage({ type: 'sample', trial, clues: puzzle.dugClues, ms: performance.now() - started });
+        let rating: ReturnType<typeof rateWalkthrough> | undefined;
+        if (data.rateDifficulty) {
+          postMessage({ type: 'progress', message: 'Trial ' + trial + ': calculating difficulty…' });
+          rating = rateWalkthrough(solveWalkthrough(puzzle.dugClues, data.mode, { allowSearch: data.allowSearch }));
+        }
+        postMessage({ type: 'sample', trial, clues: puzzle.dugClues, rating, ms: performance.now() - started });
       }
       postMessage({ type: 'complete' });
     }

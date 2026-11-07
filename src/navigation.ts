@@ -7,7 +7,7 @@ export function mountNavigation() {
     <a class="brand" href="${base}" aria-label="Intersection Sums/Products Sudoku home"><span class="brand-mark" aria-hidden="true">✣</span><span>Intersection Sums/Products Sudoku</span></a>
     <button type="button" class="about-button" aria-haspopup="dialog">About</button>`;
   const select = header.querySelector('select')!;
-  for (const [path, label] of [['', 'Generate'], ['techniques/', 'All techniques'], ['custom-build/', 'Custom Build'], ['simulation/', 'Simulation'], ['verify/', 'Verify']]) {
+  for (const [path, label] of [['', 'Generate'], ['techniques/', 'All techniques'], ['custom-build/', 'Custom Build'], ['simulation/', 'Simulation'], ['simulation-difficulty/', 'Simulation difficulty'], ['verify/', 'Verify']]) {
     const option = document.createElement('option');
     option.value = base + path; option.textContent = label;
     option.selected = location.pathname === base + path || location.pathname === base + path + 'index.html';

@@ -11,7 +11,7 @@ import type { Walkthrough } from './walkthroughSolver';
 import type { LabRequest } from './lab.worker';
 
 const page = location.pathname.split('/').filter(Boolean).filter(p => p !== 'index.html').pop();
-const titles: Record<string, string> = { techniques: 'All techniques', 'custom-build': 'Custom Build', simulation: 'Simulation', verify: 'Verify' };
+const titles: Record<string, string> = { techniques: 'All techniques', 'custom-build': 'Custom Build', simulation: 'Simulation', 'simulation-difficulty': 'Simulation difficulty', verify: 'Verify' };
 const title = titles[page ?? ''] ?? 'Verify';
 document.title = `${title} — Intersection Sums/Products Sudoku`;
 document.querySelector('#app')!.innerHTML = `<header class="masthead"><a class="brand" href="${import.meta.env.BASE_URL}">✣ Intersection Sums/Products Sudoku</a></header><main class="lab-page"><p class="eyebrow">PUZZLE LABORATORY</p><h1>${title}</h1><div id="page-controls"></div><p id="lab-status" role="status">Ready.</p><button id="lab-stop" class="walk-button" hidden>Stop</button><section id="lab-results" aria-label="Results"></section><section id="lab-walk"></section></main>`;
@@ -51,7 +51,7 @@ type LabResponse =
   | { type: 'progress' | 'error' | 'exhausted'; message: string }
   | { type: 'verified'; count: number; solutions: number[][] }
   | { type: 'built'; clues: (number | null)[]; solution: number[]; walk: Walkthrough; attempt: number }
-  | { type: 'sample'; trial: number; clues: (number | null)[]; ms: number }
+  | { type: 'sample'; trial: number; clues: (number | null)[]; ms: number; rating?: ReturnType<typeof rateWalkthrough> }
   | { type: 'complete' };
 function resetResults() { results.replaceChildren(); walkthrough.reset(); get('#lab-walk').hidden = true; }
 function showWalk(clues: (number | null)[], clueMode: ClueMode, allowSearch = true) {
@@ -150,21 +150,28 @@ if (page === 'verify') {
       });
     } catch (error) { status.textContent = (error as Error).message; }
   };
-} else if (page === 'simulation') {
-  controls.innerHTML = `<p>Generate dug puzzles and tally their remaining clue counts. Every accepted puzzle is uniquely solvable. Only samples meeting the clue cap are displayed; all completed trials count in the distribution.</p><fieldset><div class="lab-actions">${operation}<label>Trials <select id="trials" aria-label="Trials">${[1,10,100,1000,10000,100000,1000000].map(n => `<option value="${n}"${n === 1000000 ? ' selected' : ''}>${n.toLocaleString('en-US')}</option>`).join('')}</select></label><label>Sample clue cap <input id="cap" aria-label="Sample clue cap" type="number" min="0" max="81"></label><label>Digging <select id="digging"><option value="single">Single</option><option value="dual">Dual</option></select></label><label><input id="search" type="checkbox" checked> Allow brute force</label></div><button id="run-simulation" type="button">Run simulation</button></fieldset>`;
-  const setDefaultCap = () => { get<HTMLInputElement>('#cap').value = mode() === 'product' ? '9' : '17'; };
-  get('#lab-mode').addEventListener('change', setDefaultCap);
-  setDefaultCap();
+} else if (page === 'simulation' || page === 'simulation-difficulty') {
+  const byDifficulty = page === 'simulation-difficulty';
+  const sampleFilter = byDifficulty
+    ? '<label>Display grid with difficulty rating of at least <select id="minimum-rating" aria-label="Minimum difficulty rating">' + [0,300,500,800,1000,1500,3000,10000,1000000].map(n => '<option value="' + n + '"' + (n === 800 ? ' selected' : '') + '>' + n + '</option>').join('') + '</select></label>'
+    : '<label>Sample clue cap <input id="cap" aria-label="Sample clue cap" type="number" min="0" max="81"></label>';
+  controls.innerHTML = `<p>Generate dug puzzles and tally their remaining clue counts. Every accepted puzzle is uniquely solvable. ${byDifficulty ? "Only fully rated puzzles meeting the minimum difficulty are displayed. Trial duration includes difficulty calculation." : "Only samples meeting the clue cap are displayed."} All completed trials count in the distribution.</p><fieldset><div class="lab-actions">${operation}<label>Trials <select id="trials" aria-label="Trials">${[1,10,100,1000,10000,100000,1000000].map(n => `<option value="${n}"${n === 1000000 ? ' selected' : ''}>${n.toLocaleString('en-US')}</option>`).join('')}</select></label>${sampleFilter}<label>Digging <select id="digging"><option value="single">Single</option><option value="dual">Dual</option></select></label><label><input id="search" type="checkbox" checked> Allow brute force</label></div><button id="run-simulation" type="button">Run simulation</button></fieldset>`;
+  if (!byDifficulty) {
+    const setDefaultCap = () => { get<HTMLInputElement>('#cap').value = mode() === 'product' ? '9' : '16'; };
+    get('#lab-mode').addEventListener('change', setDefaultCap);
+    setDefaultCap();
+  }
   get('#run-simulation').onclick = () => {
     try {
-      const trials = Number(get<HTMLSelectElement>('#trials').value), cap = integer('#cap',0,81);
+      const trials = Number(get<HTMLSelectElement>('#trials').value), cap = byDifficulty ? 81 : integer('#cap',0,81);
+      const minimumRating = byDifficulty ? Number(get<HTMLSelectElement>('#minimum-rating').value) : 0;
       resetResults(); results.innerHTML = '<p id="simulation-summary" role="status">No completed trials yet.</p><h2>Clue-count distribution</h2><div id="histogram" aria-label="Clue-count distribution"></div><h2>Qualifying samples</h2><p>Showing the latest 11 qualifying grids.</p><div id="samples" class="lab-samples"></div>';
       let total = 0, qualified = 0, milliseconds = 0, cluesTotal = 0; const counts = new Map<number,number>();
-      run({ task:'simulation',mode:mode(),trials,digging:get<HTMLSelectElement>('#digging').value as 'single'|'dual',allowSearch:get<HTMLInputElement>('#search').checked }, data => {
+      run({ task:'simulation',mode:mode(),trials,digging:get<HTMLSelectElement>('#digging').value as 'single'|'dual',allowSearch:get<HTMLInputElement>('#search').checked,rateDifficulty:byDifficulty }, data => {
         if (data.type === 'complete') { stop(); status.textContent = `Complete: ${total} trials, ${qualified} qualifying grids.`; return; }
         if (data.type !== 'sample') return;
         const n = data.clues.filter(c=>c!==null).length; total++; milliseconds += data.ms; cluesTotal += n; counts.set(n,(counts.get(n) ?? 0)+1);
-        if (n <= cap) { qualified++; const samples = get('#samples'); samples.prepend(card(`Trial ${data.trial} · ${n} clues`,data.clues)); while(samples.children.length>11) samples.lastElementChild!.remove(); }
+        if (byDifficulty ? data.rating?.complete && data.rating.score >= minimumRating : n <= cap) { qualified++; const samples = get('#samples'); samples.prepend(card(`Trial ${data.trial} · ${n} clues${data.rating ? ` · ${data.rating.level} · ${data.rating.score} points` : ""}`,data.clues)); while(samples.children.length>11) samples.lastElementChild!.remove(); }
         get('#simulation-summary').textContent = `${total} / ${trials} completed · ${qualified} qualify · mean ${(cluesTotal/total).toFixed(1)} clues · ${(milliseconds/total/1000).toFixed(2)} s/grid`;
         const histogram = get('#histogram'); histogram.replaceChildren(); const max = Math.max(...counts.values());
         for (const [clues, count] of [...counts].sort(([a],[b])=>a-b)) { const row = document.createElement('div'); row.className = 'hist-row'; const label = document.createElement('span'); label.textContent = `${clues} clues: ${count}`; const bar = document.createElement('meter'); bar.min=0;bar.max=max;bar.value=count;bar.setAttribute('aria-label',`${clues} clues: ${count} puzzles`); row.append(label,bar);histogram.append(row); }
