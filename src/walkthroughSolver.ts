@@ -117,9 +117,11 @@ export function findConstraintStep(grid: Grid, solver: VariantSolver, mode: Clue
   return null;
 }
 
-/** Uses only the dug clues. It never receives the generated completed grid. */
+/** Logical deductions use only clues and candidates. A validated completion is used only for explicitly labelled brute-force steps. */
 export function solveWalkthrough(clues: Clues, mode: ClueMode, options: {
   allowSearch?: boolean;
+  completion?: readonly number[];
+  onStep?: (step: ExplainedStep, initial: Snapshot) => void;
   /** Conservative generation filter: stop before expensive advanced finders. */
   profile?: 'full' | 'generation';
   /** Digging needs a proof of completion, not hundreds of UI snapshots. */
@@ -132,6 +134,14 @@ export function solveWalkthrough(clues: Clues, mode: ClueMode, options: {
   const equations = mode === 'sum' ? sumEquations(clues, Array(81).fill(true)) : [];
   const steps: ExplainedStep[] = [];
   let searchSteps = 0;
+  let completion: Uint8Array | null = options.completion ? Uint8Array.from(options.completion) : null;
+  if (options.completion) {
+    const values = options.completion;
+    const calculated = intersectionClues([...values], mode);
+    if (values.length !== 81 || values.some(d => !Number.isInteger(d) || d < 1 || d > 9)
+      || UNITS.some(unit => new Set(unit.map(c => values[c])).size !== 9)
+      || clues.some((clue, cell) => clue !== null && clue !== calculated[cell])) throw new Error('Invalid shared completion.');
+  }
   const order = ACTIVE_LOGICAL_ORDER.filter(tech =>
     options.profile !== 'generation' || TECHS[tech].index <= TECHS.XYZ_WING.index);
   let stepCount = 0;
@@ -164,12 +174,16 @@ export function solveWalkthrough(clues: Clues, mode: ClueMode, options: {
     if (!step) {
       if (options.allowSearch === false || options.profile === 'generation') return { initial, steps, status: 'stalled', searchSteps };
       options.onProgress?.(steps.length, 'Logical techniques stalled; searching Sudoku and clue constraints…');
-      const completion = solver.solve(domainsOf(grid));
+      const domains = domainsOf(grid);
+      if (completion && completion.some((digit, cell) => !(domains[cell] & bit(digit)))) {
+        throw new Error('Logical deductions conflict with the validated completion.');
+      }
+      completion ??= solver.solve(domains);
       if (!completion) throw new Error('No completion satisfies the current candidates and dug clues.');
       const cell = [...grid.values].findIndex(value => !value);
       step = {
         technique: BRUTE_FORCE_NAME, kind: 'search',
-        description: `The active logical techniques found no further step. Brute force tested candidate assignments against all Sudoku rules and remaining ${mode} clues and found a compatible completion. Place ${completion[cell]} in ${cellName(cell)} along that searched path. This brute-force placement adds 10000 points.`,
+        description: `The active logical techniques found no further step. A previously validated or newly searched completion satisfies all Sudoku rules, remaining ${mode} clues, and current candidates. This step follows that completion; it is not a logical deduction. Place ${completion[cell]} in ${cellName(cell)} along that searched path. This brute-force placement adds 10000 points.`,
         placements: [{ cell, digit: completion[cell] }], eliminations: [], related: [cell],
       };
       searchSteps++;
@@ -188,7 +202,11 @@ export function solveWalkthrough(clues: Clues, mode: ClueMode, options: {
     if (before.values.every((v, i) => v === after.values[i]) && before.candidates.every((v, i) => v === after.candidates[i])) {
       throw new Error(`${step.technique} produced no change.`);
     }
-    if (options.recordSteps !== false) steps.push({ ...step, before, after, peerEliminations });
+    if (options.recordSteps !== false) {
+      const explained = { ...step, before, after, peerEliminations };
+      steps.push(explained);
+      options.onStep?.(explained, initial);
+    }
     options.onProgress?.(++stepCount, step.technique);
   }
   const calculated = intersectionClues([...grid.values], mode);

@@ -208,7 +208,7 @@ function startDigging(initial?: IntersectionPuzzle): void {
       document.querySelector('#dig-status')!.textContent = `Complete · unique solution · ${allowBacktracking ? 'brute force allowed' : 'solvable without brute force'} · ${data.result.attempts} attempt(s)`;
       updateTime();
       stopWorker();
-      walkthrough.load(dugClues, mode, allowBacktracking);
+      walkthrough.load(dugClues, mode, allowBacktracking, puzzle?.solution);
     }
   };
   current.postMessage({ mode, initial, diggingMode, allowBacktracking });
@@ -226,7 +226,7 @@ document.querySelector<HTMLButtonElement>('#generate')!.addEventListener('click'
     renderGrid(dugElement, true, dugClues);
     document.querySelector<HTMLButtonElement>('#copy-dug')!.disabled = false;
     document.querySelector('#dig-rating')!.textContent = 'Difficulty: calculating…';
-    walkthrough.load(dugClues, mode, allowBacktracking);
+    walkthrough.load(dugClues, mode, allowBacktracking, puzzle?.solution);
   } else document.querySelector('#dig-rating')!.textContent = 'Difficulty: unavailable (no puzzle generated)';
 });
 

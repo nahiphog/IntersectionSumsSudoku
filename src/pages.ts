@@ -49,6 +49,7 @@ function run(request: LabRequest, receive: (data: LabResponse) => void) {
 }
 type LabResponse =
   | { type: 'progress' | 'error' | 'exhausted'; message: string }
+  | { type: 'solution'; solution: number[] }
   | { type: 'verified'; count: number; solutions: number[][] }
   | { type: 'built'; clues: (number | null)[]; solution: number[]; walk: Walkthrough; attempt: number }
   | { type: 'sample'; trial: number; clues: (number | null)[]; ms: number; rating?: ReturnType<typeof rateWalkthrough> }
@@ -116,13 +117,20 @@ if (page === 'verify') {
     resetResults();
     try {
       const clueMode = mode(), clues = parseClues(string.value.trim() || inputs.map(i => i.value.trim() || '0').join(','), clueMode);
-      status.textContent = 'Checking for up to two solutions…';
+      status.textContent = 'Checking for up to two solutions… Logical steps are available below while uniqueness is checked.';
+      get('#lab-walk').hidden = false; walkthrough.load(clues, clueMode, false);
+      let found = false;
       run({ task: 'verify', mode: clueMode, clues }, data => {
+        if (data.type === 'solution') {
+          if (!found) { found = true; walkthrough.load(clues, clueMode, true, data.solution); }
+          status.textContent = 'A completion was found. Checking for a second solution… The walkthrough may include brute-force steps.';
+          return;
+        }
         if (data.type !== 'verified') return; stop();
         status.textContent = data.count === 0 ? 'This puzzle has no solution.' : data.count === 1 ? 'This puzzle has exactly one solution.' : 'This puzzle has at least two solutions. Differences are highlighted in orange.';
         results.append(card('Entered puzzle', clues));
         data.solutions.forEach((solution, i) => results.append(card(`Solution ${i + 1}`, solution, false, data.count > 1 ? data.solutions[1 - i] : undefined)));
-        if (data.count === 1) showWalk(clues, clueMode);
+        if (data.count === 0) { walkthrough.reset(); get('#lab-walk').hidden = true; }
       });
     } catch (error) { status.textContent = (error as Error).message; }
   };

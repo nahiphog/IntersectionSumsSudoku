@@ -14,10 +14,10 @@ export function parseClues(text: string, mode: ClueMode): (number | null)[] {
   });
 }
 
-export function verifyClues(clues: (number | null)[], mode: ClueMode) {
+export function verifyClues(clues: (number | null)[], mode: ClueMode, onSolution?: (solution: number[]) => void) {
   const solutions: number[][] = [];
   const count = new VariantSolver(clues, mode).countSolutions(undefined, {
-    onSolution: values => solutions.push([...values]),
+    onSolution: values => { const solution = [...values]; solutions.push(solution); onSolution?.(solution); },
   });
   return { count, solutions };
 }

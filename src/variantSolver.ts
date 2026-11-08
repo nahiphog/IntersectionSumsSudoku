@@ -1,6 +1,6 @@
 import { orthogonalNeighbours, type ClueMode } from './puzzle';
 import { UNITS, PEERS, CELL_UNITS, sees } from './vendor/sudokui/engine/board';
-import { sumEquations } from './sumEquations';
+import { sumEquations, type SumEquation } from './sumEquations';
 
 export type Clues = readonly (number | null)[];
 const ALL = 511;
@@ -16,6 +16,8 @@ export class VariantSolver {
   private constraints: { cell: number; neighbours: number[]; tuples: number[][] }[];
 
   private alternatives: number[][] = [];
+  private equationKey = '';
+  private equations: SumEquation[] = [];
   constructor(private clues: Clues, private mode: ClueMode, private witness?: readonly number[]) {
     if (clues.length !== 81 || clues.some(c => c !== null && (!Number.isInteger(c) || c < 1))) {
       throw new Error('Expected 81 positive clues or null for missing clues.');
@@ -89,15 +91,26 @@ export class VariantSolver {
     // Each candidate is a valid Sudoku digit trade. Two actual satisfying
     // assignments are sufficient proof of non-uniqueness, with no guessing.
     if (!options.domains && !options.onSolution && this.witness && this.alternatives.some(matches)) return limit;
-    const equations = this.mode === 'sum' ? sumEquations(this.clues, active) : [];
+    const equationKey = active.map(value => value ? '1' : '0').join('');
+    if (this.mode === 'sum' && equationKey !== this.equationKey) {
+      this.equations = sumEquations(this.clues, active); this.equationKey = equationKey;
+    }
+    const equations = this.equations;
     const degree = new Uint8Array(81);
     for (const c of constraints) for (const cell of c.neighbours) degree[cell]++;
     let count = 0;
     const search = (domains: Uint16Array, tables: number[][][]): void => {
+      // These signatures are local to this branch, never reused after backtracking.
+      const equationStates = equations.map(() => [] as number[]);
+      const clueStates = this.mode === 'sum' ? constraints.map(() => [] as number[]) : [];
+      const singles = this.mode === 'sum' ? new Uint16Array(81) : undefined;
       let changed = true;
       while (changed) {
         changed = false;
-        for (const { terms, target, tolerance } of equations) {
+        for (const [ei, { terms, target, tolerance }] of equations.entries()) {
+          const state = equationStates[ei];
+          if (state.length && terms.every(([cell], j) => state[j] === domains[cell])) continue;
+          terms.forEach(([cell], j) => { state[j] = domains[cell]; });
           let min = 0, max = 0;
           const bounds: [number, number][] = [];
           for (const [cell, coefficient] of terms) {
@@ -124,7 +137,8 @@ export class VariantSolver {
         for (let cell = 0; cell < 81; cell++) {
           const mask = domains[cell];
           if (!mask) return;
-          if (!single(mask)) continue;
+          if (!single(mask) || singles?.[cell] === mask) continue;
+          if (singles) singles[cell] = mask;
           for (const peer of PEERS[cell]) {
             if (!(domains[peer] & mask)) continue;
             domains[peer] &= ~mask;
@@ -169,6 +183,9 @@ export class VariantSolver {
         }
         for (let ci = 0; ci < constraints.length; ci++) {
           const { neighbours } = constraints[ci];
+          const state = clueStates[ci];
+          if (state?.length && neighbours.every((cell, j) => state[j] === domains[cell])) continue;
+          if (state) neighbours.forEach((cell, j) => { state[j] = domains[cell]; });
           const support = new Uint16Array(neighbours.length);
           const valid: number[][] = [];
           for (const tuple of tables[ci]) {

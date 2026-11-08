@@ -38,3 +38,11 @@ it('the technique tally accounts for all steps and agrees with the rating', () =
   expect(rows.reduce((n,r)=>n+r.count*(r.points??0),0)).toBe(rateWalkthrough(walk).score);
   expect(rows.find(r=>r.name==='Intersection product')?.points).toBe(10);
 });
+
+it('reports each actual solution before returning the uniqueness result', () => {
+  const clues = intersectionClues(solution, 'sum');
+  const seen: number[][] = [];
+  const result = verifyClues(clues, 'sum', values => seen.push(values));
+  expect(seen).toEqual(result.solutions);
+  expect(seen).toEqual([solution]);
+});

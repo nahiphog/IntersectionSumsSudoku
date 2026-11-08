@@ -13,7 +13,7 @@ export type LabRequest =
 self.onmessage = ({ data }: MessageEvent<LabRequest>) => {
   try {
     if (data.task === 'verify') {
-      postMessage({ type: 'verified', ...verifyClues(data.clues, data.mode) });
+      postMessage({ type: 'verified', ...verifyClues(data.clues, data.mode, solution => postMessage({ type: 'solution', solution })) });
     } else if (data.task === 'custom') {
       for (let attempt = 1; attempt <= data.attempts; attempt++) {
         postMessage({ type: 'progress', message: `Attempt ${attempt} / ${data.attempts}: checking the selected pattern…` });

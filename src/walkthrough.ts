@@ -2,7 +2,7 @@ import { POLICY_NOTE } from './techniquePolicy';
 import { saveTally } from './tally';
 import { rateWalkthrough, stepScore } from './difficulty';
 import type { ClueMode } from './puzzle';
-import type { ExplainedStep, Walkthrough } from './walkthroughSolver';
+import type { ExplainedStep, Walkthrough, Snapshot } from './walkthroughSolver';
 
 const position = (cell: number) => `r${Math.floor(cell / 9) + 1}c${cell % 9 + 1}`;
 
@@ -35,6 +35,7 @@ export function mountWalkthrough(host: HTMLElement, onRating?: (rating: ReturnTy
   let worker: Worker | undefined;
   let walk: Walkthrough | undefined;
   let index = 0;
+  let completion: number[] | undefined;
 
   function stop() {
     worker?.terminate(); worker = undefined;
@@ -116,15 +117,23 @@ export function mountWalkthrough(host: HTMLElement, onRating?: (rating: ReturnTy
     worker = current;
     const fail = (message: string) => { if (worker !== current) return; stop(); status.textContent = `Unable to build the walkthrough: ${message}`; };
     current.onerror = event => fail(event.message);
-    current.onmessage = (event: MessageEvent<{ type: string; steps: number; message: string; result: Walkthrough }>) => {
+    current.onmessage = (event: MessageEvent<{ type: string; steps: number; message: string; result: Walkthrough; batch: ExplainedStep[]; initial: Snapshot }>) => {
       if (worker !== current) return;
       if (event.data.type === 'error') { fail(event.data.message); return; }
       if (event.data.type === 'progress') { status.textContent = `${event.data.steps} steps recorded. ${event.data.message}`; return; }
-      walk = event.data.result; saveTally(walk, mode); stop(); content.hidden = false;
+      const streaming = event.data.type === 'step';
+      if (streaming) {
+        walk ??= { initial: event.data.initial, steps: [], status: 'stalled', searchSteps: 0 };
+        walk.steps.push(...event.data.batch);
+        walk.searchSteps += event.data.batch.filter(step => step.kind === 'search').length;
+      } else {
+        walk = event.data.result; saveTally(walk, mode); stop();
+      }
+      content.hidden = false;
       solveButton.textContent = 'Rebuild walkthrough';
-      status.textContent = `${walk.status === 'solved' ? 'Solved' : 'Logic stalled — partial walkthrough'} · ${walk.steps.length} steps · ${walk.searchSteps} brute-force · ${((performance.now() - started) / 1000).toFixed(2)} s`;
+      status.textContent = streaming ? `Building walkthrough · ${walk.steps.length} steps available` : `${walk.status === 'solved' ? 'Solved' : 'Logic stalled — partial walkthrough'} · ${walk.steps.length} steps · ${walk.searchSteps} brute-force · ${((performance.now() - started) / 1000).toFixed(2)} s`;
       const rating = rateWalkthrough(walk);
-      onRating?.(rating);
+      if (!streaming) onRating?.(rating);
       display('rating', rating.complete ? 'Difficulty: ' + rating.level + ' · ' + rating.score + ' points' : 'Difficulty: ' + (walk.searchSteps ? 'brute force used' : 'not yet rated') + ' · subtotal: ' + rating.score + ' points');
       range.max = String(walk.steps.length); jump.replaceChildren();
       ['Initial candidates', ...walk.steps.map(s => s.technique)].forEach((name, i) => { const option = document.createElement('option'); option.value = String(i); option.textContent = `${i}. ${name}`; jump.append(option); });
@@ -147,11 +156,11 @@ export function mountWalkthrough(host: HTMLElement, onRating?: (rating: ReturnTy
       }
       render();
     };
-    current.postMessage({ clues: [...clues], mode, allowSearch: searchInput.checked });
+    current.postMessage({ clues: [...clues], mode, allowSearch: searchInput.checked, completion });
   }
   solveButton.addEventListener('click', start);
   searchInput.addEventListener('change', () => { if (clues) start(); });
-  cancelButton.addEventListener('click', () => { stop(); status.textContent = 'Solving cancelled. Rebuild the walkthrough to try again.'; });
+  cancelButton.addEventListener('click', () => { stop(); status.textContent = 'Solving cancelled. Available steps are retained; completion is not established.'; });
   const moves: Record<string, () => number> = { first: () => 0, previous: () => index - 1, next: () => index + 1, last: () => walk!.steps.length };
   for (const [action, move] of Object.entries(moves)) {
     get(`[data-action="${action}"]`).addEventListener('click', () => { if (walk) { index = Math.max(0, Math.min(walk.steps.length, move())); render(); } });
@@ -160,7 +169,7 @@ export function mountWalkthrough(host: HTMLElement, onRating?: (rating: ReturnTy
   jump.addEventListener('change', () => { index = Number(jump.value); render(); });
   view.addEventListener('change', render);
   return {
-    reset() { clues = undefined; stop(); walk = undefined; index = 0; content.hidden = true; status.textContent = 'Generate a dug puzzle to begin.'; },
-    load(nextClues: (number | null)[], nextMode: ClueMode, allowSearch = true) { clues = [...nextClues]; mode = nextMode; searchInput.checked = allowSearch; start(); },
+    reset() { completion = undefined; clues = undefined; stop(); walk = undefined; index = 0; content.hidden = true; status.textContent = 'Generate a dug puzzle to begin.'; },
+    load(nextClues: (number | null)[], nextMode: ClueMode, allowSearch = true, sharedCompletion?: number[]) { completion = sharedCompletion; clues = [...nextClues]; mode = nextMode; searchInput.checked = allowSearch; start(); },
   };
 }

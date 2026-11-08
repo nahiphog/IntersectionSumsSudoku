@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { solveWalkthrough, findConstraintStep, type Walkthrough } from '../src/walkthroughSolver';
 import { generatePuzzle, intersectionClues, type ClueMode } from '../src/puzzle';
 
@@ -71,3 +71,32 @@ describe('explained variant solver', () => {
   });
 });
 
+
+const sparseSum = '0,0,0,0,0,0,17,0,0,0,0,16,0,0,19,0,0,0,0,19,0,16,0,11,0,0,0,0,0,0,0,0,0,0,0,0,0,0,24,30,0,0,0,0,0,0,18,0,27,0,0,0,0,0,0,20,0,0,0,0,15,0,0,0,0,14,0,0,0,17,0,18,0,0,0,0,0,0,0,0,0'.split(',').map(n => +n || null);
+const sparseSolution = Array.from('432169875687523194591847362254631987378492651169758243713984526946215738825376419', Number);
+it('streams sound steps and uses a shared completion only for explicit brute-force placements', () => {
+  const search = vi.spyOn(VariantSolver.prototype, 'solve');
+  try {
+    const streamed: unknown[] = [];
+    const result = solveWalkthrough(sparseSum, 'sum', { completion: sparseSolution, onStep: step => streamed.push(step) });
+    verify(result, sparseSolution);
+    expect(streamed).toEqual(result.steps);
+    expect(result.searchSteps).toBeGreaterThan(0);
+    expect(search).not.toHaveBeenCalled();
+    const logical = solveWalkthrough(sparseSum, 'sum', { allowSearch: false, completion: sparseSolution });
+    expect(logical.status).toBe('stalled');
+    expect(logical.steps).toHaveLength(3);
+    expect(logical.searchSteps).toBe(0);
+    expect(result.steps.slice(0,3)).toEqual(logical.steps);
+    expect(() => solveWalkthrough(sparseSum, 'sum', { completion: Array(81).fill(1) })).toThrow('Invalid shared completion');
+  } finally { search.mockRestore(); }
+}, 60000);
+it('searches for one completion only and reuses it across later brute-force steps', () => {
+  const search = vi.spyOn(VariantSolver.prototype, 'solve').mockReturnValue(Uint8Array.from(sparseSolution));
+  try {
+    const result = solveWalkthrough(sparseSum, 'sum');
+    verify(result, sparseSolution);
+    expect(result.searchSteps).toBeGreaterThan(1);
+    expect(search).toHaveBeenCalledTimes(1);
+  } finally { search.mockRestore(); }
+}, 60000);
