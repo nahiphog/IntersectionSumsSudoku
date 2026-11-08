@@ -165,7 +165,7 @@ if (page === 'verify') {
     : '<label>Sample clue cap <input id="cap" aria-label="Sample clue cap" type="number" min="0" max="81"></label>';
   controls.innerHTML = `<p>Generate dug puzzles and tally their remaining clue counts. Every accepted puzzle is uniquely solvable. ${byDifficulty ? "Only fully rated puzzles meeting the minimum difficulty are displayed. Trial duration includes difficulty calculation." : "Only samples meeting the clue cap are displayed."} All completed trials count in the distribution.</p><fieldset><div class="lab-actions">${operation}<label>Trials <select id="trials" aria-label="Trials">${[1,10,100,1000,10000,100000,1000000].map(n => `<option value="${n}"${n === 1000000 ? ' selected' : ''}>${n.toLocaleString('en-US')}</option>`).join('')}</select></label>${sampleFilter}<label>Digging <select id="digging"><option value="single">Single</option><option value="dual">Dual</option></select></label><label><input id="search" type="checkbox" checked> Allow brute force</label></div><button id="run-simulation" type="button">Run simulation</button></fieldset>`;
   if (!byDifficulty) {
-    const setDefaultCap = () => { get<HTMLInputElement>('#cap').value = mode() === 'product' ? '9' : '16'; };
+    const setDefaultCap = () => { get<HTMLInputElement>('#cap').value = mode() === 'product' ? '9' : '15'; };
     get('#lab-mode').addEventListener('change', setDefaultCap);
     setDefaultCap();
   }

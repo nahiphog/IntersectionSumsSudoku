@@ -15,8 +15,9 @@ operations and both digging modes use the same uniqueness policy:
   search. Retain the existing logical-solvability requirement when brute force is off.
 
 `node scripts/benchmark-digging-sat.mjs` compares seeded single-cell generation
-against commit 257a7e2 in isolated workers. A 30-second cutoff means unknown, never
+against commit 257a7e2 in isolated workers. A 60-second cutoff means unknown, never
 unique. Optional environment filters: BENCH_MODES, BENCH_SEEDS, BENCH_VERSIONS.
+BENCH_TIMEOUT_MS changes the cutoff; BENCH_OUTPUT saves raw JSON results.
 
 SAT is not uniformly faster: direct SAT increased seed-44 Sum generation time in
 development comparisons, so the integration preserves the original easy-search
