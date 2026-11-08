@@ -1,3 +1,4 @@
+import { verifyWithSat } from './satVerifier';
 import { generatePuzzle, type ClueMode } from './puzzle';
 import { digPuzzle, type DiggingMode } from './digging';
 import { maskedClues, verifyClues } from './lab';
@@ -13,7 +14,16 @@ export type LabRequest =
 self.onmessage = ({ data }: MessageEvent<LabRequest>) => {
   try {
     if (data.task === 'verify') {
-      postMessage({ type: 'verified', ...verifyClues(data.clues, data.mode, solution => postMessage({ type: 'solution', solution })) });
+      const report = (solution: number[]) => postMessage({ type: 'solution', solution });
+      let result;
+      if (data.mode === 'sum' && data.clues.filter(clue => clue !== null).length <= 24) {
+        try { result = verifyWithSat(data.clues, data.mode, report); }
+        catch {
+          postMessage({ type: 'progress', message: 'SAT checker unavailable; continuing with the independent exact search…' });
+          result = verifyClues(data.clues, data.mode, report);
+        }
+      } else result = verifyClues(data.clues, data.mode, report);
+      postMessage({ type: 'verified', ...result });
     } else if (data.task === 'custom') {
       for (let attempt = 1; attempt <= data.attempts; attempt++) {
         postMessage({ type: 'progress', message: `Attempt ${attempt} / ${data.attempts}: checking the selected pattern…` });

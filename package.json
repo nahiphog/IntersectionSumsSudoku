@@ -14,5 +14,9 @@
     "typescript": "^5.6.3",
     "vite": "^6.4.1",
     "vitest": "^5.0.5"
+  },
+  "dependencies": {
+    "logic-solver": "2.0.1",
+    "underscore": "1.13.8"
   }
 }
