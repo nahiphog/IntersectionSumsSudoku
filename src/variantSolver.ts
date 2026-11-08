@@ -2,6 +2,9 @@ import { orthogonalNeighbours, type ClueMode } from './puzzle';
 import { UNITS, PEERS, CELL_UNITS, sees } from './vendor/sudokui/engine/board';
 import { sumEquations, type SumEquation } from './sumEquations';
 
+/** Exhausting a search budget is unknown, never a solution-count verdict. */
+export class SearchLimitError extends Error {}
+
 export type Clues = readonly (number | null)[];
 const ALL = 511;
 const bit = (d: number) => 1 << (d - 1);
@@ -81,7 +84,7 @@ export class VariantSolver {
 
   /** Return 0, 1 or 2 (two means at least two). Active flags allow cached clue tables during digging. */
   countSolutions(active: readonly boolean[] = Array<boolean>(81).fill(true), options: {
-    domains?: Uint16Array; limit?: 1 | 2; onSolution?: (values: Uint8Array) => void;
+    domains?: Uint16Array; limit?: 1 | 2; nodeLimit?: number; onSolution?: (values: Uint8Array) => void;
   } = {}): number {
     const limit = options.limit ?? 2;
     const constraints = this.constraints.filter(c => active[c.cell]);
@@ -99,7 +102,9 @@ export class VariantSolver {
     const degree = new Uint8Array(81);
     for (const c of constraints) for (const cell of c.neighbours) degree[cell]++;
     let count = 0;
+    let nodes = 0;
     const search = (domains: Uint16Array, tables: number[][][]): void => {
+      if (options.nodeLimit !== undefined && ++nodes > options.nodeLimit) throw new SearchLimitError('Search budget exhausted');
       // These signatures are local to this branch, never reused after backtracking.
       const equationStates = equations.map(() => [] as number[]);
       const clueStates = this.mode === 'sum' ? constraints.map(() => [] as number[]) : [];

@@ -5,9 +5,11 @@ declare module 'logic-solver' {
     require(formula: Formula): void;
     forbid(formula: Formula): void;
     solve(): Solution | null;
+    solveAssuming(formula: Formula): Solution | null;
   }
   const Logic: {
     Solver: typeof Solver;
+    not(term: Formula): Formula;
     exactlyOne(terms: Formula[]): Formula;
     or(terms: Formula[]): Formula;
     and(terms: Formula[]): Formula;

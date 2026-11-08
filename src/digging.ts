@@ -1,5 +1,6 @@
+import { SatDiggingSolver } from './satVerifier';
 import { generatePuzzle, type ClueMode, type IntersectionPuzzle } from './puzzle';
-import { VariantSolver } from './variantSolver';
+import { VariantSolver, SearchLimitError } from './variantSolver';
 import { solveWalkthrough } from './walkthroughSolver';
 
 /** A stall retains the clue; it never counts as a successful solve. */
@@ -46,6 +47,8 @@ export function digPuzzle(
       [order[i], order[j]] = [order[j], order[i]];
     }
     let givens = 81;
+    let sat: SatDiggingSolver | undefined;
+    let satFailed = false;
     // Counts identify board states within this attempt: accepted removals only decrease givens.
     const failedRemovals = diggingMode === 'single' && !allowBacktracking
       ? new Map<number, number | 'multiple'>() : undefined;
@@ -63,7 +66,23 @@ export function digPuzzle(
         // Reject logical stalls before spending time on an exact uniqueness search.
         const logical = allowBacktracking || isLogicallySolvableForDigging(
           puzzle.clues.map((clue, index) => active[index] ? clue : null), mode);
-        const solutions = logical ? solver.countSolutions(active) : undefined;
+        let solutions: number | undefined;
+        if (logical) {
+          if (solutions === undefined && !satFailed && givens - cells.length <= 24) {
+            // Finish easy queries cheaply; a budget exhaustion is unknown and
+            // must be resolved by SAT (or unlimited exact fallback).
+            try { solutions = solver.countSolutions(active, { nodeLimit: 10000 }); }
+            catch (error) {
+              if (!(error instanceof SearchLimitError)) throw error;
+              try {
+                sat ??= new SatDiggingSolver(puzzle.clues, mode, puzzle.solution,
+                  active.map((on,c) => on || cells.includes(c)));
+                solutions = sat.countSolutions(active);
+              } catch { satFailed = true; }
+            }
+          }
+          solutions ??= solver.countSolutions(active);
+        }
         if (solutions === 1) {
           givens -= cells.length;
           removed = true;
