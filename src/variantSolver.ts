@@ -85,6 +85,8 @@ export class VariantSolver {
   /** Return 0, 1 or 2 (two means at least two). Active flags allow cached clue tables during digging. */
   countSolutions(active: readonly boolean[] = Array<boolean>(81).fill(true), options: {
     domains?: Uint16Array; limit?: 1 | 2; nodeLimit?: number; onSolution?: (values: Uint8Array) => void;
+    /** A copy after deterministic propagation, before any trial assignment. */
+    onRootDomains?: (domains: Uint16Array) => void;
   } = {}): number {
     const limit = options.limit ?? 2;
     const constraints = this.constraints.filter(c => active[c.cell]);
@@ -104,7 +106,8 @@ export class VariantSolver {
     let count = 0;
     let nodes = 0;
     const search = (domains: Uint16Array, tables: number[][][]): void => {
-      if (options.nodeLimit !== undefined && ++nodes > options.nodeLimit) throw new SearchLimitError('Search budget exhausted');
+      nodes++;
+      if (options.nodeLimit !== undefined && nodes > options.nodeLimit) throw new SearchLimitError('Search budget exhausted');
       // These signatures are local to this branch, never reused after backtracking.
       const equationStates = equations.map(() => [] as number[]);
       const clueStates = this.mode === 'sum' ? constraints.map(() => [] as number[]) : [];
@@ -210,6 +213,7 @@ export class VariantSolver {
           }
         }
       }
+      if (nodes === 1) options.onRootDomains?.(domains.slice());
       let best = -1, smallest = 10;
       for (let cell = 0; cell < 81; cell++) {
         const n = size(domains[cell]);

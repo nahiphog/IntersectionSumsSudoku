@@ -38,6 +38,9 @@ this change does not promise a speedup for every generated puzzle.
 
 See `COMPACT-SAT-BENCHMARK.md` for the follow-up measurements after replacing the
 tuple encoding and shortening the Sum search budget.
+See `SUM-TAIL-PERFORMANCE.md` for the subsequent selective algebra enrichment,
+its correctness conditions, extra memory cost and measured regressions as well
+as improvements. The original model remains available alongside enrichment.
 
 Regression tests cover assumption restoration, invalid witnesses, search-budget
 exhaustion, successful SAT integration and fallback after SAT errors. Final dug

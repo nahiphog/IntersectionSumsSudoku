@@ -4,6 +4,51 @@ import { generatePuzzle, intersectionClues } from '../src/puzzle';
 import { digPuzzle } from '../src/digging';
 import { VariantSolver, SearchLimitError } from '../src/variantSolver';
 const solution = Array.from({length:81},(_,i)=>(Math.floor(i/9)*3+Math.floor(i/27)+i%9)%9+1);
+it('scopes propagated candidates and derived equations to their own clue set', () => {
+  const clues = intersectionClues(solution, 'sum');
+  const full = Array<boolean>(81).fill(true);
+  let root: Uint16Array | undefined;
+  const onRoot = vi.fn((domains: Uint16Array) => { root = domains; });
+  expect(new VariantSolver(clues, 'sum').countSolutions(full, { onRootDomains: onRoot })).toBe(1);
+  expect(onRoot).toHaveBeenCalledTimes(1);
+  expect(root).toBeDefined();
+  const sat = new SatDiggingSolver(clues, 'sum', solution, full);
+  expect(sat.countSolutions(full, root)).toBe(1);
+  expect(sat.countSolutions(Array(81).fill(false))).toBe(2);
+  expect(sat.countSolutions(full)).toBe(1);
+  expect(() => sat.countSolutions(full, new Uint16Array(81))).toThrow('Invalid propagated domains');
+}, 60000);
+
+it('reports pre-branch candidates once and does not expose mutable search state', () => {
+  const empty = Array(81).fill(null);
+  const root = vi.fn((domains: Uint16Array) => {
+    expect([...domains]).toEqual(Array(81).fill(511));
+    domains.fill(0);
+  });
+  expect(new VariantSolver(empty, 'sum').countSolutions(undefined, { onRootDomains: root })).toBe(2);
+  expect(root).toHaveBeenCalledTimes(1);
+});
+
+it('restores a sparse Sum proof after checking a genuinely ambiguous removal', () => {
+  let seed = 48;
+  const random = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; };
+  const puzzle = generatePuzzle(random, 'sum');
+  // Unique retained mask from the independent pre-optimization benchmark.
+  const cells = [0,5,8,9,10,12,24,33,35,37,43,55,58,60,65,67,74,78,80];
+  const active = Array.from({ length: 81 }, (_, cell) => cells.includes(cell));
+  const sat = new SatDiggingSolver(puzzle.clues, 'sum', puzzle.solution, active);
+  let root: Uint16Array | undefined;
+  try {
+    new VariantSolver(puzzle.clues, 'sum', puzzle.solution).countSolutions(active, {
+      nodeLimit: 1, onRootDomains: domains => { root = domains; },
+    });
+  } catch (error) { if (!(error instanceof SearchLimitError)) throw error; }
+  expect(root).toBeDefined();
+  expect(sat.countSolutions(active, root)).toBe(1);
+  const missing = [...active]; missing[8] = false;
+  expect(sat.countSolutions(missing)).toBe(2);
+  expect(sat.countSolutions(active)).toBe(1);
+}, 180000);
 it.each(['sum', 'product'] as const)('keeps %s SAT assumptions temporary when clues are removed and restored', (mode) => {
   const clues = intersectionClues(solution, mode);
   const full = Array<boolean>(81).fill(true);

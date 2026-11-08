@@ -71,13 +71,15 @@ export function digPuzzle(
           if (solutions === undefined && !satFailed && givens - cells.length <= 24) {
             // Finish easy queries cheaply; a budget exhaustion is unknown and
             // must be resolved by SAT (or unlimited exact fallback).
-            try { solutions = solver.countSolutions(active, { nodeLimit: mode === 'sum' ? 64 : 10000 }); }
+            let rootDomains: Uint16Array | undefined;
+            try { solutions = solver.countSolutions(active, { nodeLimit: mode === 'sum' ? 64 : 10000,
+              onRootDomains: mode === 'sum' ? domains => { rootDomains = domains; } : undefined }); }
             catch (error) {
               if (!(error instanceof SearchLimitError)) throw error;
               try {
                 sat ??= new SatDiggingSolver(puzzle.clues, mode, puzzle.solution,
                   active.map((on,c) => on || cells.includes(c)));
-                solutions = sat.countSolutions(active);
+                solutions = sat.countSolutions(active, rootDomains);
               } catch { satFailed = true; }
             }
           }
