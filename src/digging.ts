@@ -71,7 +71,7 @@ export function digPuzzle(
           if (solutions === undefined && !satFailed && givens - cells.length <= 24) {
             // Finish easy queries cheaply; a budget exhaustion is unknown and
             // must be resolved by SAT (or unlimited exact fallback).
-            try { solutions = solver.countSolutions(active, { nodeLimit: 10000 }); }
+            try { solutions = solver.countSolutions(active, { nodeLimit: mode === 'sum' ? 64 : 10000 }); }
             catch (error) {
               if (!(error instanceof SearchLimitError)) throw error;
               try {

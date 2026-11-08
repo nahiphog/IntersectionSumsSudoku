@@ -15,6 +15,26 @@ it.each(['sum', 'product'] as const)('keeps %s SAT assumptions temporary when cl
   expect(solver.countSolutions(oneMissing)).toBe(new VariantSolver(clues,mode,solution).countSolutions(oneMissing));
   expect(solver.countSolutions(full)).toBe(1);
 },60000);
+
+it('digs Sum with compact SAT without fallback and agrees with the independent exact solver', () => {
+  let seed = 44;
+  const random = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; };
+  let fallbacks = 0;
+  const original = VariantSolver.prototype.countSolutions;
+  const exact = vi.spyOn(VariantSolver.prototype, 'countSolutions').mockImplementation(function(this: VariantSolver, active, options) {
+    if (active && active.filter(Boolean).length <= 24 && !options?.nodeLimit) fallbacks++;
+    return original.call(this, active, options);
+  });
+  const sat = vi.spyOn(SatDiggingSolver.prototype, 'countSolutions');
+  let result: ReturnType<typeof digPuzzle>;
+  try {
+    result = digPuzzle('sum', undefined, random);
+    expect(sat).toHaveBeenCalled();
+    expect(fallbacks).toBe(0);
+  } finally { exact.mockRestore(); sat.mockRestore(); }
+  expect(new VariantSolver(result.dugClues, 'sum', result.solution).countSolutions()).toBe(1);
+  expect(result.dugClues.filter(c => c !== null)).toHaveLength(18);
+}, 120000);
 it('rejects an invalid witness or clues outside the guarded model', () => {
   const clues = intersectionClues(solution, 'sum');
   expect(()=>new SatDiggingSolver(clues,'sum',Array(81).fill(1),Array(81).fill(true))).toThrow('Invalid digging witness');

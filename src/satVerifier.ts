@@ -1,19 +1,66 @@
 import Logic from './satRuntime';
 import { VariantSolver, type Clues } from './variantSolver';
 import { UNITS } from './vendor/sudokui/engine/board';
-import { intersectionClues, type ClueMode } from './puzzle';
+import { intersectionClues, orthogonalNeighbours, type ClueMode } from './puzzle';
 
 /** Exact SAT verification. Blocking only the 81 cell assignments (not auxiliary
  * tuple selectors) makes the second model a genuinely different Sudoku grid. */
 function buildModel(clues: Clues, mode: ClueMode, guarded = false) {
-  const options = new VariantSolver(clues, mode).clueOptions();
+  if (clues.length !== 81 || clues.some(c => c !== null && (!Number.isSafeInteger(c) || c < 1))) {
+    throw new Error('Expected 81 positive clues or null for missing clues.');
+  }
+  const options = mode === 'product' ? new VariantSolver(clues, mode).clueOptions() : [];
   const solver = new Logic.Solver();
   const variables = Array.from({ length: 81 }, (_, cell) =>
     Array.from({ length: 9 }, (_, digit) => `c${cell}d${digit + 1}`));
-  for (const cell of variables) solver.require(Logic.exactlyOne(cell));
+  const exactlyOne = (terms: string[]) => {
+    if (mode === 'product' || !guarded) { solver.require(Logic.exactlyOne(terms)); return; }
+    solver.require(Logic.or(terms));
+    for (let i = 0; i < terms.length; i++) for (let j = i + 1; j < terms.length; j++) {
+      solver.require(Logic.or([Logic.not(terms[i]), Logic.not(terms[j])]));
+    }
+  };
+  for (const cell of variables) exactlyOne(cell);
   for (const unit of UNITS) for (let digit = 0; digit < 9; digit++) {
-    solver.require(Logic.exactlyOne(unit.map(cell => variables[cell][digit])));
+    exactlyOne(unit.map(cell => variables[cell][digit]));
   }
+  if (mode === 'sum') clues.forEach((target, cell) => {
+    if (target === null) return;
+    const neighbours = orthogonalNeighbours(cell);
+    const totals = (cells: number[], side: string): Map<number, string> => {
+      if (cells.length === 1) return new Map(variables[cells[0]].map((v, d) => [d + 1, v]));
+      const sums = new Map(Array.from({ length: 17 }, (_, i) => [i + 2, `sum${cell}${side}${i + 2}`]));
+      solver.require(Logic.exactlyOne([...sums.values()]));
+      for (let a = 1; a <= 9; a++) for (let b = 1; b <= 9; b++) {
+        solver.require(Logic.or([Logic.not(variables[cells[0]][a-1]),
+          Logic.not(variables[cells[1]][b-1]), sums.get(a+b)!]));
+      }
+      // Propagate in both directions: a total and either digit determine the other.
+      for (const [sum, variable] of sums) for (let digit = 1; digit <= 9; digit++) {
+        const other = sum - digit;
+        for (let side = 0; side < 2; side++) {
+          solver.require(Logic.or([Logic.not(variable), Logic.not(variables[cells[side]][digit-1]),
+            ...(other >= 1 && other <= 9 ? [variables[cells[1-side]][other-1]] : [])]));
+        }
+      }
+      return sums;
+    };
+    const left = totals(neighbours.slice(0, Math.floor(neighbours.length / 2)), 'L');
+    const right = totals(neighbours.slice(Math.floor(neighbours.length / 2)), 'R');
+    // Each half has exactly one total. The only permitted pair sums to the clue.
+    for (const [a, variable] of left) {
+      const other = right.get(target - a);
+      const clause = [Logic.not(variable), ...(other ? [other] : [])];
+      if (guarded) clause.push(Logic.not(`active${cell}`));
+      solver.require(Logic.or(clause));
+    }
+    for (const [b, variable] of right) {
+      const other = left.get(target - b);
+      const clause = [Logic.not(variable), ...(other ? [other] : [])];
+      if (guarded) clause.push(Logic.not(`active${cell}`));
+      solver.require(Logic.or(clause));
+    }
+  });
   for (const { cell, neighbours, tuples } of options) {
     const selectors = tuples.map((_, i) => `clue${cell}tuple${i}`);
     const requireClue = (formula: Parameters<typeof solver.require>[0]) =>
