@@ -1,4 +1,3 @@
-import { PENCILMARK_DESCRIPTION } from './puzzle';
 export function mountNavigation() {
   const header = document.querySelector<HTMLElement>('.masthead');
   if (!header) return;
@@ -18,7 +17,7 @@ export function mountNavigation() {
 
   const dialog = document.createElement('dialog');
   dialog.className = 'about-dialog'; dialog.setAttribute('aria-labelledby', 'about-title');
-  dialog.innerHTML = `<h2 id="about-title">About</h2><p>Normal Sudoku rules apply. Fill every row, column, and 3 × 3 box with the digits 1–9, each appearing exactly once.</p><p>A clue written in the upper-left corner of a cell refers to its orthogonally adjacent cells—the cells immediately above, below, left, and right. Only neighbours within the grid are included. The cell containing the clue is not included.</p><p><strong>Sum mode</strong> — The clue gives the sum of the digits in those neighbouring cells.</p><p><strong>Product mode</strong> — The clue gives the product of the digits in those neighbouring cells.</p><p>${PENCILMARK_DESCRIPTION}</p><p>For example, 1688 at R7C3 means R7C2, R7C4, R6C3, and R8C3 contain 1, 6, 8, and 8 in some order. Repeated digits are required. Corner clues list two digits; edge clues list three.</p><form method="dialog"><button class="walk-button" autofocus>Close</button></form>`;
+  dialog.innerHTML = `<h2 id="about-title">About</h2><p>Normal Sudoku rules apply. Fill every row, column, and 3 × 3 box with the digits 1–9, each appearing exactly once.</p><p>A clue written in the upper-left corner of a cell refers to its orthogonally adjacent cells—the cells immediately above, below, left, and right. Only neighbours within the grid are included. The cell containing the clue is not included.</p><p><strong>Sum mode</strong> — The clue gives the sum of the digits in those neighbouring cells.</p><p><strong>Product mode</strong> — The clue gives the product of the digits in those neighbouring cells.</p><p><strong>Pencilmark mode</strong> — The clue indicates which numbers must be placed in the orthogonally adjacent cells.</p><form method="dialog"><button class="walk-button" autofocus>Close</button></form>`;
   document.body.append(dialog);
   const about = header.querySelector<HTMLButtonElement>('.about-button')!;
   about.addEventListener('click', () => dialog.showModal());
