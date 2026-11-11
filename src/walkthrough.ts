@@ -11,10 +11,10 @@ export function mountWalkthrough(host: HTMLElement, onRating?: (rating: ReturnTy
     <div class="walk-heading"><div><p class="step">04 / SOLVING</p><h2>Solution walkthrough</h2></div><button class="walk-button" data-action="solve" disabled>Solve step by step</button></div>
     <p class="walk-status" role="status">Generate a dug puzzle to begin.</p>
     <div class="walk-options"><label><input type="checkbox" data-option="search" checked> Allow brute force if logic stalls</label><button class="walk-button" data-action="cancel" hidden>Cancel solving</button></div>
-    <p class="walk-note">Uses sudokUI techniques and the remaining sum/product clues. ${POLICY_NOTE} Brute-force steps are labeled explicitly.</p>
+    <p class="walk-note">Uses sudokUI techniques and the remaining sum/product/pencilmark clues. ${POLICY_NOTE} Brute-force steps are labeled explicitly.</p>
     <div class="walk-content" hidden>
       <p class="walk-rating" data-display="rating" role="status"></p>
-      <p class="walk-note">Variant rating: sudokUI technique scores, plus 10 per intersection sum/product or combined sum equation step. Brute force adds 10000 per use. Unfinished walkthroughs show a subtotal only.</p>
+      <p class="walk-note">Variant rating: sudokUI technique scores, plus 10 per intersection sum/product/pencilmark or combined sum equation step. Brute force adds 10000 per use. Unfinished walkthroughs show a subtotal only.</p>
       <div class="walk-layout"><article class="board-panel"><div class="panel-heading"><h3 data-display="counter"></h3><label>View <select data-option="view"><option value="after">After step</option><option value="before">Before step</option></select></label></div><div class="grid walk-grid" role="table" aria-label="Solver candidates and placements"></div><p class="walk-legend"><span>Blue: pattern / clue</span><span>Green: placement</span><span>Red ×: removed candidate</span></p></article>
       <div class="walk-sidebar"><section class="walk-summary" aria-label="Techniques tally"><h3>Techniques tally</h3><table><thead><tr><th scope="col">Technique</th><th scope="col">Steps</th></tr></thead><tbody></tbody></table><p class="walk-note">Select a step number to open that step in the walkthrough.</p></section><div class="walk-detail"><span class="pill" data-display="kind"></span><h3 data-display="technique"></h3><p data-display="description"></p><details class="walk-effects"><summary>Candidate changes</summary><p data-display="effects"></p></details><details class="walk-combinations" hidden><summary>Valid neighbouring combinations</summary><p data-display="combination-order"></p><ul data-display="combinations"></ul></details></div></div></div>
       <div class="walk-controls"><button class="walk-button" data-action="first">First</button><button class="walk-button" data-action="previous">Previous</button><label class="walk-slider">Step <input type="range" min="0" value="0" max="0" aria-label="Walkthrough step"></label><button class="walk-button" data-action="next">Next</button><button class="walk-button" data-action="last">Last</button></div>
@@ -95,7 +95,7 @@ export function mountWalkthrough(host: HTMLElement, onRating?: (rating: ReturnTy
     if (step?.combinations) {
       display('combination-order', `In order: ${step.neighbourOrder!.map(position).join(', ')}. Showing ${step.combinations.length} of ${step.combinationCount} valid combinations.`);
       for (const tuple of step.combinations) {
-        const item = document.createElement('li'); item.textContent = `${tuple.join(mode === 'sum' ? ' + ' : ' × ')} = ${clues[step.clueCell!]}`;
+        const item = document.createElement('li'); item.textContent = mode === 'pencilmark' ? `${tuple.join(', ')} — digits for clue ${clues[step.clueCell!]}` : `${tuple.join(mode === 'sum' ? ' + ' : ' × ')} = ${clues[step.clueCell!]}`;
         get('[data-display="combinations"]').append(item);
       }
     }

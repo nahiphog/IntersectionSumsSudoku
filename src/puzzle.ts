@@ -1,6 +1,13 @@
 import { generateFullGrid } from './vendor/sudokui/engine/generator';
 
-export type ClueMode = 'sum' | 'product';
+export type ClueMode = 'sum' | 'product' | 'pencilmark';
+
+export const PENCILMARK_DESCRIPTION = 'Pencilmark mode:  The clue indicates which numbers must be placed in the orthogonally adjacent cells.';
+
+export function clueValue(digits: readonly number[], mode: ClueMode): number {
+  if (mode === 'pencilmark') return Number([...digits].sort((a, b) => a - b).join(''));
+  return digits.reduce((value, digit) => mode === 'sum' ? value + digit : value * digit, mode === 'sum' ? 0 : 1);
+}
 
 export function serializeSolution(solution: readonly number[]): string {
   if (solution.length !== 81 || solution.some(d => !Number.isInteger(d) || d < 1 || d > 9)) {
@@ -38,10 +45,7 @@ export function intersectionClues(solution: readonly number[], mode: ClueMode): 
   if (solution.length !== 81 || solution.some(d => !Number.isInteger(d) || d < 1 || d > 9)) {
     throw new Error('Expected 81 completed Sudoku digits.');
   }
-  return solution.map((_, cell) => orthogonalNeighbours(cell).reduce(
-    (value, neighbour) => mode === 'sum' ? value + solution[neighbour] : value * solution[neighbour],
-    mode === 'sum' ? 0 : 1,
-  ));
+  return solution.map((_, cell) => clueValue(orthogonalNeighbours(cell).map(neighbour => solution[neighbour]), mode));
 }
 
 export const intersectionSums = (solution: readonly number[]) => intersectionClues(solution, 'sum');

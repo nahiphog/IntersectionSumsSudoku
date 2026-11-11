@@ -1,5 +1,5 @@
 import type { ClueMode } from './puzzle';
-import { orthogonalNeighbours } from './puzzle';
+import { clueValue, orthogonalNeighbours } from './puzzle';
 import { VariantSolver } from './variantSolver';
 
 export function parseClues(text: string, mode: ClueMode): (number | null)[] {
@@ -9,6 +9,11 @@ export function parseClues(text: string, mode: ClueMode): (number | null)[] {
     if (!/^\d+$/.test(part)) throw new Error(`R${Math.floor(cell / 9) + 1}C${cell % 9 + 1}: use a non-negative whole number.`);
     const value = Number(part);
     const n = orthogonalNeighbours(cell).length;
+    if (mode === 'pencilmark') {
+      if (value === 0) return null;
+      if (!/^[1-9]+$/.test(part) || part.length !== n) throw new Error(`R${Math.floor(cell / 9) + 1}C${cell % 9 + 1}: enter exactly ${n} pencilmark digits from 1–9, or 0 for a blank.`);
+      return clueValue([...part].map(Number), mode);
+    }
     if (!Number.isSafeInteger(value) || value > (mode === 'sum' ? n * 9 : 9 ** n)) throw new Error(`R${Math.floor(cell / 9) + 1}C${cell % 9 + 1}: clue exceeds the possible ${mode}.`);
     return value || null;
   });

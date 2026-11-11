@@ -3,7 +3,8 @@ import './style.css';
 import { mountNavigation } from './navigation';
 import { mountWalkthrough } from './walkthrough';
 import { parseClues } from './lab';
-import { serializeClues, serializeSolution, type ClueMode } from './puzzle';
+import { bindPuzzleString } from './verifyInput';
+import { PENCILMARK_DESCRIPTION, serializeClues, serializeSolution, type ClueMode } from './puzzle';
 import { TECHS } from './vendor/sudokui/engine/ratings';
 import { saveTally } from './tally';
 import { rateWalkthrough } from './difficulty';
@@ -13,8 +14,8 @@ import type { LabRequest } from './lab.worker';
 const page = location.pathname.split('/').filter(Boolean).filter(p => p !== 'index.html').pop();
 const titles: Record<string, string> = { techniques: 'All techniques', 'custom-build': 'Custom Build', simulation: 'Simulation', 'simulation-difficulty': 'Simulation difficulty', verify: 'Verify' };
 const title = titles[page ?? ''] ?? 'Verify';
-document.title = `${title} — Intersection Sums/Products Sudoku`;
-document.querySelector('#app')!.innerHTML = `<header class="masthead"><a class="brand" href="${import.meta.env.BASE_URL}">✣ Intersection Sums/Products Sudoku</a></header><main class="lab-page"><p class="eyebrow">PUZZLE LABORATORY</p><h1>${title}</h1><div id="page-controls"></div><p id="lab-status" role="status">Ready.</p><button id="lab-stop" class="walk-button" hidden>Stop</button><section id="lab-results" aria-label="Results"></section><section id="lab-walk"></section></main>`;
+document.title = `${title} — Intersection Sums/Products/Pencilmarks Sudoku`;
+document.querySelector('#app')!.innerHTML = `<header class="masthead"><a class="brand" href="${import.meta.env.BASE_URL}">✣ Intersection Sums/Products/Pencilmarks Sudoku</a></header><main class="lab-page"><p class="eyebrow">PUZZLE LABORATORY</p><h1>${title}</h1><div id="page-controls"></div><p id="lab-status" role="status">Ready.</p><button id="lab-stop" class="walk-button" hidden>Stop</button><section id="lab-results" aria-label="Results"></section><section id="lab-walk"></section></main>`;
 mountNavigation();
 const get = <T extends HTMLElement>(selector: string) => document.querySelector<T>(selector)!;
 const controls = get('#page-controls'), results = get('#lab-results'), status = get('#lab-status');
@@ -22,7 +23,7 @@ const walkthrough = mountWalkthrough(get('#lab-walk'));
 get('#lab-walk').hidden = true;
 const stopButton = get<HTMLButtonElement>('#lab-stop');
 let worker: Worker | undefined;
-const operation = `<label>Clue operation <select id="lab-mode"><option value="sum">Sum</option><option value="product">Product</option></select></label>`;
+const operation = `<label>Clue mode <select id="lab-mode"><option value="sum">Sum</option><option value="product">Product</option><option value="pencilmark">Pencilmark</option></select></label><p id="mode-description" role="status"></p>`;
 const mode = () => get<HTMLSelectElement>('#lab-mode').value as ClueMode;
 const integer = (selector: string, min: number, max: number) => {
   const input = get<HTMLInputElement>(selector), value = Number(input.value);
@@ -97,7 +98,7 @@ function card(name: string, values: (number | null)[], clues = true, alternate?:
 }
 
 if (page === 'verify') {
-  controls.innerHTML = `<p>Paste 81 comma-separated sum/product clues (0 for blanks), or fill the grid. Clues describe neighbours, not the digit in their own cell.</p><fieldset>${operation}<label class="lab-string">Puzzle string<textarea id="puzzle-string" placeholder="0,0,0,…" spellcheck="false"></textarea></label><p>The string takes priority when supplied.</p><div id="entry-grid" class="grid lab-grid"></div><div class="lab-actions"><button id="verify-now" type="button">Verify puzzle</button><button id="clear-input" type="button">Clear input</button><button id="paste-clipboard" type="button">Paste clipboard</button></div></fieldset>`;
+  controls.innerHTML = `<p>Paste 81 comma-separated sum/product/pencilmark clues (0 for blanks), or fill the grid. Clues describe neighbours, not the digit in their own cell.</p><fieldset>${operation}<label class="lab-string">Puzzle string<textarea id="puzzle-string" placeholder="0,0,0,…" spellcheck="false"></textarea></label><p>Grid edits update the string automatically. A valid puzzle string updates the grid.</p><p id="entry-count" role="status">0 / 81 cells filled</p><div id="entry-grid" class="grid lab-grid"></div><div class="lab-actions"><button id="verify-now" type="button">Verify puzzle</button><button id="clear-input" type="button">Clear input</button><button id="paste-clipboard" type="button">Paste clipboard</button></div></fieldset>`;
   const inputs: HTMLInputElement[] = [];
   for (let r = 0; r < 9; r++) {
     const row = document.createElement('div'); row.className = 'grid-row';
@@ -111,8 +112,28 @@ if (page === 'verify') {
     get('#entry-grid').append(row);
   }
   const string = get<HTMLTextAreaElement>('#puzzle-string');
-  get('#clear-input').onclick = () => { string.value = ''; inputs.forEach(i => i.value = ''); resetResults(); status.textContent = 'Input cleared.'; };
-  get('#paste-clipboard').onclick = async () => { try { const text = await navigator.clipboard.readText(); parseClues(text, mode()); string.value = text; resetResults(); status.textContent = 'Puzzle pasted.'; } catch (error) { status.textContent = `Could not paste: ${error instanceof Error ? error.message : error}. You can paste directly into Puzzle string.`; } };
+  const feedback = document.createElement('p');
+  feedback.id = 'puzzle-string-feedback';
+  feedback.setAttribute('role', 'status');
+  string.setAttribute('aria-describedby', feedback.id);
+  string.closest('label')!.after(feedback);
+  const updateCount = () => {
+    const count = inputs.filter(input => input.value.trim() !== '' && Number(input.value) !== 0).length;
+    get('#entry-count').textContent = `${count} / 81 cells filled`;
+  };
+  const fillGrid = (clues: (number | null)[]) => {
+    inputs.forEach((input, index) => { input.value = clues[index] === null ? '' : String(clues[index]); });
+    updateCount();
+  };
+  inputs.forEach(input => { input.oninput = () => {
+    string.value = inputs.map(cell => cell.value.trim() || '0').join(',');
+    updateCount();
+    syncString();
+  }; });
+  const syncString = bindPuzzleString(string, mode, fillGrid, feedback);
+  get('#lab-mode').addEventListener('change', syncString);
+  get('#clear-input').onclick = () => { string.value = ''; syncString(); resetResults(); status.textContent = 'Input cleared.'; };
+  get('#paste-clipboard').onclick = async () => { try { const text = await navigator.clipboard.readText(); const clues = parseClues(text, mode()); string.value = text; fillGrid(clues); syncString(); resetResults(); status.textContent = 'Puzzle pasted.'; } catch (error) { status.textContent = `Could not paste: ${error instanceof Error ? error.message : error}. You can paste directly into Puzzle string.`; } };
   get('#verify-now').onclick = () => {
     resetResults();
     try {
@@ -189,7 +210,7 @@ if (page === 'verify') {
 } else {
   status.hidden = true;
   const catalogue = [
-    {name:'Intersection sum',score:10}, {name:'Intersection product',score:10}, {name:'Combined sum equations',score:10},
+    {name:'Intersection sum',score:10}, {name:'Intersection product',score:10}, {name:'Intersection pencilmarks',score:10}, {name:'Combined sum equations',score:10},
     ...ACTIVE_LOGICAL_ORDER.map(t => TECHS[t]), {name:BRUTE_FORCE_NAME,score:BRUTE_FORCE_SCORE},
   ].filter(info => info.score === null || info.score < 400 || info.score > 800)
     .sort((a,b) => (a.score ?? Infinity) - (b.score ?? Infinity) || a.name.localeCompare(b.name));
@@ -204,4 +225,12 @@ if (page === 'verify') {
     body.append(row);
   }
   table.append(body); results.append(table);
+}
+
+
+const modeSelect = document.querySelector<HTMLSelectElement>('#lab-mode');
+if (modeSelect) {
+  const updateDescription = () => { get('#mode-description').textContent = modeSelect.value === 'pencilmark' ? PENCILMARK_DESCRIPTION : ''; };
+  modeSelect.addEventListener('change', updateDescription);
+  updateDescription();
 }

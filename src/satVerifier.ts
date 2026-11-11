@@ -1,7 +1,7 @@
 import Logic from './satRuntime';
 import { VariantSolver, type Clues } from './variantSolver';
 import { UNITS } from './vendor/sudokui/engine/board';
-import { intersectionClues, orthogonalNeighbours, type ClueMode } from './puzzle';
+import { clueValue, intersectionClues, orthogonalNeighbours, type ClueMode } from './puzzle';
 import { sumEquations, type SumEquation } from './sumEquations';
 
 /** Exact consequences of the current clues and unit totals. Only short signed
@@ -45,12 +45,12 @@ function buildModel(clues: Clues, mode: ClueMode, guarded = false) {
   if (clues.length !== 81 || clues.some(c => c !== null && (!Number.isSafeInteger(c) || c < 1))) {
     throw new Error('Expected 81 positive clues or null for missing clues.');
   }
-  const options = mode === 'product' ? new VariantSolver(clues, mode).clueOptions() : [];
+  const options = mode !== 'sum' ? new VariantSolver(clues, mode).clueOptions() : [];
   const solver = new Logic.Solver();
   const variables = Array.from({ length: 81 }, (_, cell) =>
     Array.from({ length: 9 }, (_, digit) => `c${cell}d${digit + 1}`));
   const exactlyOne = (terms: string[]) => {
-    if (mode === 'product' || !guarded) { solver.require(Logic.exactlyOne(terms)); return; }
+    if (mode !== 'sum' || !guarded) { solver.require(Logic.exactlyOne(terms)); return; }
     solver.require(Logic.or(terms));
     for (let i = 0; i < terms.length; i++) for (let j = i + 1; j < terms.length; j++) {
       solver.require(Logic.or([Logic.not(terms[i]), Logic.not(terms[j])]));
@@ -128,7 +128,7 @@ export function verifyWithSat(clues: Clues, mode: ClueMode, onSolution?: (values
     const calculated = intersectionClues(values, mode);
     if (values.some(d => d < 1 || d > 9)
       || UNITS.some(unit => new Set(unit.map(cell => values[cell])).size !== 9)
-      || clues.some((clue, cell) => clue !== null && clue !== calculated[cell])
+      || clues.some((clue, cell) => clue !== null && (mode === 'pencilmark' ? clueValue(String(clue).split('').map(Number), mode) : clue) !== calculated[cell])
       || solutions.some(previous => previous.every((digit, cell) => digit === values[cell]))) {
       throw new Error('SAT completion failed independent validation.');
     }
@@ -148,7 +148,7 @@ export class SatDiggingSolver {
     const calculated = intersectionClues([...witness], mode);
     if (witness.length !== 81 || witness.some(d => !Number.isInteger(d) || d < 1 || d > 9)
       || UNITS.some(unit => new Set(unit.map(c => witness[c])).size !== 9)
-      || clues.some((clue,c) => clue !== null && clue !== calculated[c])) throw new Error('Invalid digging witness.');
+      || clues.some((clue,c) => clue !== null && (mode === 'pencilmark' ? clueValue(String(clue).split('').map(Number), mode) : clue) !== calculated[c])) throw new Error('Invalid digging witness.');
     this.included = [...included];
     this.model = buildModel(clues.map((clue,c) => included[c] ? clue : null), mode, true);
     const known = Logic.and(witness.map((digit,c) => this.model.variables[c][digit-1]));
@@ -186,7 +186,7 @@ export class SatDiggingSolver {
     const calculated = intersectionClues(values, this.mode);
     if (values.some(d => d < 1 || d > 9)
       || UNITS.some(unit => new Set(unit.map(c => values[c])).size !== 9)
-      || this.clues.some((clue,c) => active[c] && clue !== null && clue !== calculated[c])
+      || this.clues.some((clue,c) => active[c] && clue !== null && (this.mode === 'pencilmark' ? clueValue(String(clue).split('').map(Number), this.mode) : clue) !== calculated[c])
       || values.every((d,c) => d === this.witness[c])) throw new Error('Invalid alternative SAT completion.');
     return 2;
   }

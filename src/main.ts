@@ -1,27 +1,27 @@
 import { gridImage, imageBlob } from './gridImage';
 import { mountNavigation } from './navigation';
 import './style.css';
-import { intersectionClues, orthogonalNeighbours, serializeClues, serializeSolution, type ClueMode, type IntersectionPuzzle } from './puzzle';
+import { PENCILMARK_DESCRIPTION, intersectionClues, orthogonalNeighbours, serializeClues, serializeSolution, type ClueMode, type IntersectionPuzzle } from './puzzle';
 import type { DugPuzzle, DigProgress, DiggingMode } from './digging';
 import { mountWalkthrough } from './walkthrough';
 
 document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
   <header class="masthead">
-    <a class="brand" href="./" aria-label="Intersection Sums/Products Sudoku home"><span class="brand-mark" aria-hidden="true">✣</span> <span>Intersection Sums/Products Sudoku</span></a>
+    <a class="brand" href="./" aria-label="Intersection Sums/Products/Pencilmarks Sudoku home"><span class="brand-mark" aria-hidden="true">✣</span> <span>Intersection Sums/Products/Pencilmarks Sudoku</span></a>
     <span class="version">GENERATOR · 01</span>
   </header>
   <main>
     <section class="intro">
-      <div class="generator-controls"><fieldset class="mode-toggle"><legend>Clue operation</legend><label><input type="radio" name="mode" value="sum" checked><span>Sum</span></label><label><input type="radio" name="mode" value="product"><span>Product</span></label></fieldset><fieldset class="mode-toggle"><legend>Digging algorithm</legend><label><input type="radio" name="digging" value="single" checked><span>Single</span></label><label><input type="radio" name="digging" value="dual"><span>Dual</span></label></fieldset><label class="generation-search"><input id="allow-backtracking" type="checkbox" checked> Allow brute force</label><div class="generation-action"><button id="generate" class="generate"><span aria-hidden="true">↻</span> Generate</button><p>Generation time: <strong id="elapsed">—</strong></p></div></div>
+      <div class="generator-controls"><fieldset class="mode-toggle"><legend>Clue mode</legend><label><input type="radio" name="mode" value="sum" checked><span>Sum</span></label><label><input type="radio" name="mode" value="product"><span>Product</span></label><label><input type="radio" name="mode" value="pencilmark"><span>Pencilmark</span></label></fieldset><fieldset class="mode-toggle"><legend>Digging algorithm</legend><label><input type="radio" name="digging" value="single" checked><span>Single</span></label><label><input type="radio" name="digging" value="dual"><span>Dual</span></label></fieldset><label class="generation-search"><input id="allow-backtracking" type="checkbox" checked> Allow brute force</label><div class="generation-action"><button id="generate" class="generate"><span aria-hidden="true">↻</span> Generate</button><p>Generation time: <strong id="elapsed">—</strong></p></div></div>
     </section>
-    <section class="generation-summary" aria-label="Puzzle summary"><p id="dig-rating" role="status">Difficulty: —</p><p id="given-count" role="status">— givens</p></section>
+    <p id="mode-description" role="status"></p><section class="generation-summary" aria-label="Puzzle summary"><p id="dig-rating" role="status">Difficulty: —</p><p id="given-count" role="status">— givens</p></section>
     <section class="dig-section" aria-label="Dug puzzle generation"><article class="board-panel"><div class="panel-heading"><div><span class="step">03 / DIGGING</span><h2>Dug puzzle</h2></div></div><div id="dug" class="grid clue-grid" role="table" aria-label="Dug puzzle"></div><p class="board-caption">Only confirmed clue removals are kept.</p></article><div class="dig-info"><p id="dig-status" role="status">Generate to begin digging.</p><p id="dig-outcome">Digging: not started</p><button id="copy-dug" disabled>Copy dug puzzle</button><p id="copy-status" role="status"></p><textarea id="copy-fallback" aria-label="Dug puzzle comma-separated clues" readonly hidden></textarea></div></section>
     <section id="walkthrough" class="walkthrough" aria-label="Solution walkthrough"></section>
     <section class="boards" aria-label="Sudoku generator">
       <article class="board-panel"><div class="panel-heading"><div><span class="step">01 / SOURCE</span><h2>Completed grid</h2></div><span class="pill">9 × 9</span></div><button id="copy-solution" class="copy-grid" disabled>Copy completed grid</button><button id="copy-solution-image" class="copy-grid" disabled>Copy grid as image</button><span id="copy-solution-status" role="status"></span><button type="button" class="walk-button grid-toggle" aria-controls="solution" aria-expanded="false">Expand grid</button><div id="solution" hidden class="grid" role="table" aria-label="Completed Sudoku grid"></div><p class="board-caption"><span class="caption-line"></span> Every row, column and box contains 1–9.</p></article>
-      <article class="board-panel puzzle-panel"><div class="panel-heading"><div><span class="step">02 / TRANSFORMATION</span><h2 id="puzzle-title">Intersection sums</h2></div><span class="pill green">81 clues</span></div><button id="copy-transformed" class="copy-grid" disabled>Copy sums/products grid</button><button id="copy-transformed-image" class="copy-grid" disabled>Copy grid as image</button><span id="copy-transformed-status" role="status"></span><button type="button" class="walk-button grid-toggle" aria-controls="puzzle" aria-expanded="false">Expand grid</button><div id="puzzle" hidden class="grid clue-grid" role="table" aria-label="Empty Intersection Sums puzzle"></div><p class="board-caption"><span class="caption-corner">Σ</span> Small clues. All 81 digits left for you to discover.</p></article>
+      <article class="board-panel puzzle-panel"><div class="panel-heading"><div><span class="step">02 / TRANSFORMATION</span><h2 id="puzzle-title">Intersection sums</h2></div><span class="pill green">81 clues</span></div><button id="copy-transformed" class="copy-grid" disabled>Copy clue grid</button><button id="copy-transformed-image" class="copy-grid" disabled>Copy grid as image</button><span id="copy-transformed-status" role="status"></span><button type="button" class="walk-button grid-toggle" aria-controls="puzzle" aria-expanded="false">Expand grid</button><div id="puzzle" hidden class="grid clue-grid" role="table" aria-label="Empty Intersection Sums puzzle"></div><p class="board-caption"><span class="caption-corner">Σ</span> Small clues. All 81 digits left for you to discover.</p></article>
     </section>
-    <footer><span>INTERSECTION SUMS/PRODUCTS SUDOKU</span><span>Classic solving engine from <a href="https://github.com/AImenes/sudokUI" target="_blank" rel="noreferrer">sudokUI ↗</a> · <a href="./LICENSE.txt">GPL-3.0</a></span></footer>
+    <footer><span>INTERSECTION SUMS/PRODUCTS/PENCILMARKS SUDOKU</span><span>Classic solving engine from <a href="https://github.com/AImenes/sudokUI" target="_blank" rel="noreferrer">sudokUI ↗</a> · <a href="./LICENSE.txt">GPL-3.0</a></span></footer>
   </main>`;
 
 let puzzle: IntersectionPuzzle | undefined;
@@ -110,10 +110,11 @@ function inspect(index: number): void {
 }
 
 function updateModeText(): void {
-  const plural = mode === 'sum' ? 'sums' : 'products';
+  document.querySelector('#mode-description')!.textContent = mode === 'pencilmark' ? PENCILMARK_DESCRIPTION : mode === 'sum' ? 'Sum mode: The clue gives the sum of the orthogonally adjacent digits.' : 'Product mode: The clue gives the product of the orthogonally adjacent digits.';
+  const plural = mode === 'sum' ? 'sums' : mode === 'product' ? 'products' : 'pencilmarks';
   document.querySelector('#puzzle-title')!.textContent = `Intersection ${plural}`;
   puzzleElement.setAttribute('aria-label', `Empty Intersection ${plural} puzzle`);
-  document.querySelectorAll('#operation-symbol, .caption-corner').forEach(element => element.textContent = mode === 'sum' ? 'Σ' : 'Π');
+  document.querySelectorAll('#operation-symbol, .caption-corner').forEach(element => element.textContent = mode === 'sum' ? 'Σ' : mode === 'product' ? 'Π' : '✎');
   if (activeCell >= 0) inspect(activeCell);
 }
 

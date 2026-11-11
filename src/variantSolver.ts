@@ -1,4 +1,4 @@
-import { orthogonalNeighbours, type ClueMode } from './puzzle';
+import { clueValue, orthogonalNeighbours, type ClueMode } from './puzzle';
 import { UNITS, PEERS, CELL_UNITS, sees } from './vendor/sudokui/engine/board';
 import { sumEquations, type SumEquation } from './sumEquations';
 
@@ -46,19 +46,24 @@ export class VariantSolver {
     clues.forEach((target, cell) => {
       if (target === null) return;
       const neighbours = orthogonalNeighbours(cell);
+      const pencilmarks = mode === 'pencilmark' ? String(target).split('').map(Number) : [];
+      if (mode === 'pencilmark' && (pencilmarks.length !== neighbours.length || pencilmarks.some(digit => digit < 1))) {
+        throw new Error('Pencilmark clues must contain one digit from 1–9 per orthogonal neighbour.');
+      }
       const tuples: number[][] = [];
       const digits: number[] = [];
       const enumerate = (value: number): void => {
         const pos = digits.length;
         if (pos === neighbours.length) {
-          if (value === target) tuples.push(digits.map(bit));
+          if (mode === 'pencilmark' || value === target) tuples.push(digits.map(bit));
           return;
         }
         for (let d = 1; d <= 9; d++) {
+          if (mode === 'pencilmark' && digits.filter(digit => digit === d).length >= pencilmarks.filter(digit => digit === d).length) continue;
           if (digits.some((prev, j) => prev === d && sees(neighbours[j], neighbours[pos]))) continue;
           const next = mode === 'sum' ? value + d : value * d;
           const remaining = neighbours.length - pos - 1;
-          if (mode === 'sum' ? next + remaining > target || next + remaining * 9 < target : next > target || target % next !== 0) continue;
+          if (mode !== 'pencilmark' && (mode === 'sum' ? next + remaining > target || next + remaining * 9 < target : next > target || target % next !== 0)) continue;
           digits.push(d);
           enumerate(next);
           digits.pop();
@@ -91,7 +96,8 @@ export class VariantSolver {
     const limit = options.limit ?? 2;
     const constraints = this.constraints.filter(c => active[c.cell]);
     const matches = (values: readonly number[]) => constraints.every(c =>
-      c.neighbours.reduce((v, cell) => this.mode === 'sum' ? v + values[cell] : v * values[cell], this.mode === 'sum' ? 0 : 1) === this.clues[c.cell]);
+      clueValue(c.neighbours.map(cell => values[cell]), this.mode) === (this.mode === 'pencilmark'
+        ? clueValue(String(this.clues[c.cell]).split('').map(Number), this.mode) : this.clues[c.cell]));
     if (this.witness && !matches(this.witness)) throw new Error('Witness does not satisfy the active clues.');
     // Each candidate is a valid Sudoku digit trade. Two actual satisfying
     // assignments are sufficient proof of non-uniqueness, with no guessing.

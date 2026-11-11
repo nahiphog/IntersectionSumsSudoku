@@ -1,6 +1,6 @@
 import { VariantSolver, type Clues } from './variantSolver';
 import type { ClueMode } from './puzzle';
-import { intersectionClues } from './puzzle';
+import { clueValue, intersectionClues } from './puzzle';
 import { emptyGrid, cloneGrid, bit, digitsOf, cellName, isSolved, isBroken, UNITS, type Grid } from './vendor/sudokui/engine/board';
 import { findStep, applyStep } from './vendor/sudokui/engine/humanSolver';
 import { TECHS } from './vendor/sudokui/engine/ratings';
@@ -32,6 +32,17 @@ export interface Walkthrough {
 }
 const snapshot = (grid: Grid): Snapshot => ({ values: [...grid.values], candidates: [...grid.cands] });
 const domainsOf = (grid: Grid) => Uint16Array.from(grid.cands, (mask, cell) => grid.values[cell] ? bit(grid.values[cell]) : mask);
+
+export function describeSudokuStep(step: Step): string {
+  if (step.tech !== 'REMOTE_PAIR' || !step.colouring) return step.description;
+  const cluster = step.colouring.clusters[0];
+  const digits = [...new Set(cluster.dark.map(candidate => candidate.digit))].sort();
+  const group = (candidates: CellDigit[]) => candidates.filter(candidate => candidate.digit === digits[0]).map(candidate => cellName(candidate.cell)).join(', ');
+  return `Remote Pair: these cells all contain only ${digits.join(' and ')}. Cells linked by a shared row, column, or box must alternate digits. `
+    + `Group A (${group(cluster.dark)}) therefore holds one digit, and group B (${group(cluster.light)}) holds the other. `
+    + 'Any outside cell seeing a cell from each group cannot contain either digit. '
+    + `Remove ${step.eliminations.map(candidate => `${candidate.digit} from ${cellName(candidate.cell)}`).join('; ')}.`;
+}
 
 function findSumEquationStep(grid: Grid, equations: SumEquation[]): Omit<ExplainedStep, 'before' | 'after' | 'peerEliminations'> | null {
   const domains = domainsOf(grid);
@@ -90,7 +101,7 @@ export function findConstraintStep(grid: Grid, solver: VariantSolver, mode: Clue
       }
     }
     if (!eliminations.length) continue;
-    const target = allowed[0].reduce((value, mask) => mode === 'sum' ? value + digitsOf(mask)[0] : value * digitsOf(mask)[0], mode === 'sum' ? 0 : 1);
+    const target = clueValue(allowed[0].map(mask => digitsOf(mask)[0]), mode);
     const digitSets = [...new Set(allowed.map(tuple => tuple.map(mask => digitsOf(mask)[0]).sort((a, b) => a - b).join(', ')))];
     const symbol = mode === 'sum' ? ' + ' : ' × ';
     const forced = neighbours.flatMap((c, j) => !grid.values[c] && digitsOf(support[j]).length === 1
@@ -98,7 +109,7 @@ export function findConstraintStep(grid: Grid, solver: VariantSolver, mode: Clue
     const pair = forced.length === 0 && neighbours.length === 2 && digitSets.length === 1
       && new Set(digitSets[0].split(', ')).size === 2
       && UNITS.some(unit => neighbours.every(c => unit.includes(c)));
-    const fact = digitSets.length === 1
+    const fact = mode === 'pencilmark' ? `Pencilmark clue ${target}: the neighbouring cells must contain exactly ${digitSets[0]}, including repeated digits.` : digitSets.length === 1
       ? target + ' = ' + digitSets[0].split(', ').join(symbol) + '.'
       : target + ': possible neighbour groups are ' + (digitSets.length <= 4
         ? digitSets.map(set => '(' + set + ')').join(' or ')
@@ -107,7 +118,7 @@ export function findConstraintStep(grid: Grid, solver: VariantSolver, mode: Clue
       : forced.length ? forced.join('; ') + '.'
       : digitSets.length === 1 ? neighbours.map(name).join(', ') + ' contain these digits in some order.' : '';
     return {
-      technique: mode === 'sum' ? 'Intersection sum' : 'Intersection product', kind: 'constraint',
+      technique: mode === 'sum' ? 'Intersection sum' : mode === 'product' ? 'Intersection product' : 'Intersection pencilmarks', kind: 'constraint',
       description: [fact, deduction, ...(forced.length ? [] : locks)].filter(Boolean).join(' '),
       placements: [], eliminations, related: [...new Set([cell, ...neighbours, ...eliminations.map(e => e.cell)])], clueCell: cell,
       neighbourOrder: neighbours, combinationCount: allowed.length,
@@ -140,13 +151,13 @@ export function solveWalkthrough(clues: Clues, mode: ClueMode, options: {
     const calculated = intersectionClues([...values], mode);
     if (values.length !== 81 || values.some(d => !Number.isInteger(d) || d < 1 || d > 9)
       || UNITS.some(unit => new Set(unit.map(c => values[c])).size !== 9)
-      || clues.some((clue, cell) => clue !== null && clue !== calculated[cell])) throw new Error('Invalid shared completion.');
+      || clues.some((clue, cell) => clue !== null && (mode === 'pencilmark' ? clueValue(String(clue).split('').map(Number), mode) : clue) !== calculated[cell])) throw new Error('Invalid shared completion.');
   }
   const order = ACTIVE_LOGICAL_ORDER.filter(tech =>
     options.profile !== 'generation' || TECHS[tech].index <= TECHS.XYZ_WING.index);
   let stepCount = 0;
   const fromSudoku = (step: Step): Omit<ExplainedStep, 'before' | 'after' | 'peerEliminations'> => ({
-    technique: TECHS[step.tech].name, kind: 'sudoku', description: step.description,
+    technique: TECHS[step.tech].name, kind: 'sudoku', description: describeSudokuStep(step),
     placements: step.placements, eliminations: step.eliminations,
     related: [...new Set([
       ...(step.primary ?? []).map(c => c.cell), ...(step.secondary ?? []).map(c => c.cell),
