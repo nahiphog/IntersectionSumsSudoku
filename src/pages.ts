@@ -4,6 +4,7 @@ import { mountNavigation } from './navigation';
 import { mountWalkthrough } from './walkthrough';
 import { parseClues } from './lab';
 import { bindPuzzleString } from './verifyInput';
+import { readVerifyLink, verifyLink } from './verifyLink';
 import { PENCILMARK_DESCRIPTION, serializeClues, serializeSolution, type ClueMode } from './puzzle';
 import { TECHS } from './vendor/sudokui/engine/ratings';
 import { saveTally } from './tally';
@@ -53,7 +54,7 @@ type LabResponse =
   | { type: 'solution'; solution: number[] }
   | { type: 'verified'; count: number; solutions: number[][] }
   | { type: 'built'; clues: (number | null)[]; solution: number[]; walk: Walkthrough; attempt: number }
-  | { type: 'sample'; trial: number; clues: (number | null)[]; ms: number; rating?: ReturnType<typeof rateWalkthrough> }
+  | { type: 'sample'; trial: number; clues: (number | null)[]; ms: number; rating: ReturnType<typeof rateWalkthrough> }
   | { type: 'complete' };
 function resetResults() { results.replaceChildren(); walkthrough.reset(); get('#lab-walk').hidden = true; }
 function showWalk(clues: (number | null)[], clueMode: ClueMode, allowSearch = true) {
@@ -132,6 +133,15 @@ if (page === 'verify') {
   }; });
   const syncString = bindPuzzleString(string, mode, fillGrid, feedback);
   get('#lab-mode').addEventListener('change', syncString);
+  try {
+    const linked = readVerifyLink(location.search);
+    if (linked) {
+      get<HTMLSelectElement>('#lab-mode').value = linked.mode;
+      string.value = linked.puzzle;
+      syncString();
+      status.textContent = 'Sample loaded. Ready to verify.';
+    }
+  } catch (error) { status.textContent = `Could not load puzzle link: ${(error as Error).message}`; }
   get('#clear-input').onclick = () => { string.value = ''; syncString(); resetResults(); status.textContent = 'Input cleared.'; };
   get('#paste-clipboard').onclick = async () => { try { const text = await navigator.clipboard.readText(); const clues = parseClues(text, mode()); string.value = text; fillGrid(clues); syncString(); resetResults(); status.textContent = 'Puzzle pasted.'; } catch (error) { status.textContent = `Could not paste: ${error instanceof Error ? error.message : error}. You can paste directly into Puzzle string.`; } };
   get('#verify-now').onclick = () => {
@@ -184,7 +194,7 @@ if (page === 'verify') {
   const sampleFilter = byDifficulty
     ? '<label>Display grid with difficulty rating of at least <select id="minimum-rating" aria-label="Minimum difficulty rating">' + [0,300,500,800,1000,1500,3000,10000,1000000].map(n => '<option value="' + n + '"' + (n === 800 ? ' selected' : '') + '>' + n + '</option>').join('') + '</select></label>'
     : '<label>Sample clue cap <input id="cap" aria-label="Sample clue cap" type="number" min="0" max="81"></label>';
-  controls.innerHTML = `<p>Generate dug puzzles and tally their remaining clue counts. Every accepted puzzle is uniquely solvable. ${byDifficulty ? "Only fully rated puzzles meeting the minimum difficulty are displayed. Trial duration includes difficulty calculation." : "Only samples meeting the clue cap are displayed."} All completed trials count in the distribution.</p><fieldset><div class="lab-actions">${operation}<label>Trials <select id="trials" aria-label="Trials">${[1,10,100,1000,10000,100000,1000000].map(n => `<option value="${n}"${n === 1000000 ? ' selected' : ''}>${n.toLocaleString('en-US')}</option>`).join('')}</select></label>${sampleFilter}<label>Digging <select id="digging"><option value="single">Single</option><option value="dual">Dual</option></select></label><label><input id="search" type="checkbox" checked> Allow brute force</label></div><button id="run-simulation" type="button">Run simulation</button></fieldset>`;
+  controls.innerHTML = `<p>Generate dug puzzles and tally their remaining clue counts. Every accepted puzzle is uniquely solvable. ${byDifficulty ? "Only fully rated puzzles meeting the minimum difficulty are displayed." : "Only samples meeting the clue cap are displayed."} Every sample is rated; trial duration includes difficulty calculation. All completed trials count in the distribution.</p><fieldset><div class="lab-actions">${operation}<label>Trials <select id="trials" aria-label="Trials">${[1,10,100,1000,10000,100000,1000000].map(n => `<option value="${n}"${n === 1000000 ? ' selected' : ''}>${n.toLocaleString('en-US')}</option>`).join('')}</select></label>${sampleFilter}<label>Digging <select id="digging"><option value="single">Single</option><option value="dual">Dual</option></select></label><label><input id="search" type="checkbox" checked> Allow brute force</label></div><button id="run-simulation" type="button">Run simulation</button></fieldset>`;
   if (!byDifficulty) {
     const setDefaultCap = () => { get<HTMLInputElement>('#cap').value = mode() === 'sum' ? '15' : '9'; };
     get('#lab-mode').addEventListener('change', setDefaultCap);
@@ -194,13 +204,33 @@ if (page === 'verify') {
     try {
       const trials = Number(get<HTMLSelectElement>('#trials').value), cap = byDifficulty ? 81 : integer('#cap',0,81);
       const minimumRating = byDifficulty ? Number(get<HTMLSelectElement>('#minimum-rating').value) : 0;
+      const clueMode = mode();
       resetResults(); results.innerHTML = '<p id="simulation-summary" role="status">No completed trials yet.</p><h2>Clue-count distribution</h2><div id="histogram" aria-label="Clue-count distribution"></div><h2>Qualifying samples</h2><p>Showing the latest 11 qualifying grids.</p><div id="samples" class="lab-samples"></div>';
       let total = 0, qualified = 0, milliseconds = 0, cluesTotal = 0; const counts = new Map<number,number>();
-      run({ task:'simulation',mode:mode(),trials,digging:get<HTMLSelectElement>('#digging').value as 'single'|'dual',allowSearch:get<HTMLInputElement>('#search').checked,rateDifficulty:byDifficulty }, data => {
+      run({ task:'simulation',mode:clueMode,trials,digging:get<HTMLSelectElement>('#digging').value as 'single'|'dual',allowSearch:get<HTMLInputElement>('#search').checked }, data => {
         if (data.type === 'complete') { stop(); status.textContent = `Complete: ${total} trials, ${qualified} qualifying grids.`; return; }
         if (data.type !== 'sample') return;
         const n = data.clues.filter(c=>c!==null).length; total++; milliseconds += data.ms; cluesTotal += n; counts.set(n,(counts.get(n) ?? 0)+1);
-        if (byDifficulty ? data.rating?.complete && data.rating.score >= minimumRating : n <= cap) { qualified++; const samples = get('#samples'); samples.prepend(card(`Trial ${data.trial} · ${n} clues${data.rating ? ` · ${data.rating.level} · ${data.rating.score} points` : ""}`,data.clues)); while(samples.children.length>11) samples.lastElementChild!.remove(); }
+        if (byDifficulty ? data.rating.complete && data.rating.score >= minimumRating : n <= cap) {
+          qualified++;
+          const samples = get('#samples');
+          const sample = card(`Trial ${data.trial} · ${n} clues`, data.clues);
+          const rating = document.createElement('p');
+          rating.textContent = data.rating.complete
+            ? `Difficulty: ${data.rating.level} · ${data.rating.score} points`
+            : `Difficulty: not fully rated · subtotal ${data.rating.score} points`;
+          const displayed = new Date();
+          const timestamp = document.createElement('p');
+          const time = document.createElement('time');
+          time.dateTime = displayed.toISOString();
+          time.textContent = displayed.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'long' });
+          timestamp.append('Displayed (local time): ', time);
+          sample.querySelector('h2')!.after(rating, timestamp);
+          const url = verifyLink(new URL(import.meta.env.BASE_URL, location.origin).href, data.clues, clueMode);
+          sample.querySelector('.lab-actions')!.prepend(button('Open in Verify', () => { window.open(url, '_blank', 'noopener,noreferrer'); }));
+          samples.prepend(sample);
+          while(samples.children.length>11) samples.lastElementChild!.remove();
+        }
         get('#simulation-summary').textContent = `${total} / ${trials} completed · ${qualified} qualify · mean ${(cluesTotal/total).toFixed(1)} clues · ${(milliseconds/total/1000).toFixed(2)} s/grid`;
         const histogram = get('#histogram'); histogram.replaceChildren(); const max = Math.max(...counts.values());
         for (const [clues, count] of [...counts].sort(([a],[b])=>a-b)) { const row = document.createElement('div'); row.className = 'hist-row'; const label = document.createElement('span'); label.textContent = `${clues} clues: ${count}`; const bar = document.createElement('meter'); bar.min=0;bar.max=max;bar.value=count;bar.setAttribute('aria-label',`${clues} clues: ${count} puzzles`); row.append(label,bar);histogram.append(row); }
