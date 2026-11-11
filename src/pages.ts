@@ -141,18 +141,9 @@ if (page === 'verify') {
   }; });
   const syncString = bindPuzzleString(string, mode, fillGrid, feedback);
   get('#lab-mode').addEventListener('change', syncString);
-  try {
-    const linked = readVerifyLink(location.search);
-    if (linked) {
-      get<HTMLSelectElement>('#lab-mode').value = linked.mode;
-      string.value = linked.puzzle;
-      syncString();
-      status.textContent = 'Sample loaded. Ready to verify.';
-    }
-  } catch (error) { status.textContent = `Could not load puzzle link: ${(error as Error).message}`; }
   get('#clear-input').onclick = () => { string.value = ''; syncString(); resetResults(); status.textContent = 'Input cleared.'; };
   get('#paste-clipboard').onclick = async () => { try { const text = await navigator.clipboard.readText(); const clues = parseClues(text, mode()); string.value = text; fillGrid(clues); syncString(); resetResults(); status.textContent = 'Puzzle pasted.'; } catch (error) { status.textContent = `Could not paste: ${error instanceof Error ? error.message : error}. You can paste directly into Puzzle string.`; } };
-  get('#verify-now').onclick = () => {
+  const verifyPuzzle = () => {
     resetResults();
     try {
       const clueMode = mode(), clues = parseClues(string.value.trim() || inputs.map(i => i.value.trim() || '0').join(','), clueMode);
@@ -173,6 +164,16 @@ if (page === 'verify') {
       });
     } catch (error) { status.textContent = (error as Error).message; }
   };
+  get('#verify-now').onclick = verifyPuzzle;
+  try {
+    const linked = readVerifyLink(location.search);
+    if (linked) {
+      get<HTMLSelectElement>('#lab-mode').value = linked.mode;
+      string.value = linked.puzzle;
+      syncString();
+      verifyPuzzle();
+    }
+  } catch (error) { status.textContent = `Could not load puzzle link: ${(error as Error).message}`; }
 } else if (page === 'custom-build') {
   controls.innerHTML = `<p>Select the positions that should contain clues. Build searches for values at exactly those positions, with one solution and a complete logical walkthrough within your rating range.</p><fieldset>${operation}<div id="pattern" class="grid lab-grid" aria-label="Select clue positions"></div><p id="selection" aria-live="polite">0 clue positions selected</p><div class="lab-actions"><button id="select-all" type="button">Select all</button><button id="select-none" type="button">Remove highlights</button></div><div class="lab-actions"><label>Minimum rating <input id="minimum" aria-label="Minimum rating" type="number" value="0" min="0" max="1000000"></label><label>Maximum rating <input id="maximum" aria-label="Maximum rating" type="number" value="100000" min="0" max="1000000"></label><label>Attempt limit <input id="attempts" aria-label="Attempt limit" type="number" value="1000" min="1" max="1000000"></label></div><button id="build-now" type="button">Build now</button></fieldset>`;
   const selected = new Set<number>(), cells: HTMLButtonElement[] = [];
