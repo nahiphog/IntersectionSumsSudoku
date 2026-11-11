@@ -3,7 +3,7 @@ export function gridImage(values: readonly (number | null)[], clues: boolean): H
   const canvas = document.createElement('canvas'); canvas.width = canvas.height = 904;
   const ctx = canvas.getContext('2d')!;
   ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, 904, 904);
-  ctx.fillStyle = '#263c34'; ctx.strokeStyle = '#53634f';
+  ctx.fillStyle = clues ? '#7b2cbf' : '#263c34'; ctx.strokeStyle = '#53634f';
   ctx.font = clues ? '24px sans-serif' : '48px sans-serif';
   ctx.textAlign = clues ? 'left' : 'center'; ctx.textBaseline = clues ? 'top' : 'middle';
   values.forEach((value, i) => {

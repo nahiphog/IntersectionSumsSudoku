@@ -1,3 +1,4 @@
+import { gridImage, imageBlob } from './gridImage';
 import { ACTIVE_LOGICAL_ORDER, BRUTE_FORCE_NAME, BRUTE_FORCE_SCORE } from './techniquePolicy';
 import './style.css';
 import { mountNavigation } from './navigation';
@@ -82,23 +83,30 @@ async function copy(text: string, host: HTMLElement) {
   try { await navigator.clipboard.writeText(text); status.textContent = 'Copied to clipboard.'; }
   catch { const area = document.createElement('textarea'); area.readOnly = true; area.value = text; area.setAttribute('aria-label', 'Copy this text'); host.append(area); area.focus(); area.select(); status.textContent = 'Clipboard unavailable. Copy the selected text.'; }
 }
-function downloadImage(values: (number | null)[], clues: boolean) {
-  const canvas = document.createElement('canvas'); canvas.width = canvas.height = 900;
-  const ctx = canvas.getContext('2d')!; ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, 900, 900); ctx.fillStyle = '#263c34';
-  ctx.font = clues ? '24px sans-serif' : '48px sans-serif'; ctx.textAlign = clues ? 'left' : 'center';
-  values.forEach((value, i) => { if (value) ctx.fillText(String(value), (i % 9) * 100 + (clues ? 7 : 50), Math.floor(i / 9) * 100 + (clues ? 29 : 66)); });
-  for (let i = 0; i <= 9; i++) { ctx.lineWidth = i % 3 ? 1 : 5; ctx.beginPath(); ctx.moveTo(i * 100, 0); ctx.lineTo(i * 100, 900); ctx.moveTo(0, i * 100); ctx.lineTo(900, i * 100); ctx.stroke(); }
-  const a = document.createElement('a'); a.download = 'intersection-sudoku.png'; a.href = canvas.toDataURL('image/png'); a.click();
+async function copyImage(values: (number | null)[], clues: boolean, feedback: HTMLElement) {
+  const canvas = gridImage(values, clues);
+  try {
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': imageBlob(canvas) })]);
+    feedback.textContent = 'Grid image copied.';
+  } catch {
+    feedback.textContent = 'Image clipboard unavailable. ';
+    const link = document.createElement('a'); link.textContent = 'Download PNG instead';
+    link.href = canvas.toDataURL('image/png'); link.download = 'intersection-sudoku.png';
+    feedback.append(link);
+  }
 }
+
 function card(name: string, values: (number | null)[], clues = true, alternate?: number[]) {
   const article = document.createElement('article'); article.className = 'board-panel lab-card';
   const heading = document.createElement('h2'); heading.textContent = name; article.append(heading, grid(values, clues, alternate));
   const actions = document.createElement('div'); actions.className = 'lab-actions';
-  actions.append(button('Copy string', () => void copy(clues ? serializeClues(values) : serializeSolution(values as number[]), article)), button('Download image', () => downloadImage(values, clues)));
-  article.append(actions); return article;
+  const feedback = document.createElement('p'); feedback.setAttribute('role', 'status');
+  actions.append(button('Copy string', () => void copy(clues ? serializeClues(values) : serializeSolution(values as number[]), article)), button('Copy image', () => void copyImage(values, clues, feedback)));
+  article.append(actions, feedback); return article;
 }
 
 if (page === 'verify') {
+  results.classList.add('verify-results');
   controls.innerHTML = `<p>Paste 81 comma-separated sum/product/pencilmark clues (0 for blanks), or fill the grid. Clues describe neighbours, not the digit in their own cell.</p><fieldset>${operation}<label class="lab-string">Puzzle string<textarea id="puzzle-string" placeholder="0,0,0,…" spellcheck="false"></textarea></label><p>Grid edits update the string automatically. A valid puzzle string updates the grid.</p><p id="entry-count" role="status">0 / 81 cells filled</p><div id="entry-grid" class="grid lab-grid"></div><div class="lab-actions"><button id="verify-now" type="button">Verify puzzle</button><button id="clear-input" type="button">Clear input</button><button id="paste-clipboard" type="button">Paste clipboard</button></div></fieldset>`;
   const inputs: HTMLInputElement[] = [];
   for (let r = 0; r < 9; r++) {
@@ -196,7 +204,7 @@ if (page === 'verify') {
     : '<label>Sample clue cap <input id="cap" aria-label="Sample clue cap" type="number" min="0" max="81"></label>';
   controls.innerHTML = `<p>Generate dug puzzles and tally their remaining clue counts. Every accepted puzzle is uniquely solvable. ${byDifficulty ? "Only fully rated puzzles meeting the minimum difficulty are displayed." : "Only samples meeting the clue cap are displayed."} Every sample is rated; trial duration includes difficulty calculation. All completed trials count in the distribution.</p><fieldset><div class="lab-actions">${operation}<label>Trials <select id="trials" aria-label="Trials">${[1,10,100,1000,10000,100000,1000000].map(n => `<option value="${n}"${n === 1000000 ? ' selected' : ''}>${n.toLocaleString('en-US')}</option>`).join('')}</select></label>${sampleFilter}<label>Digging <select id="digging"><option value="single">Single</option><option value="dual">Dual</option></select></label><label><input id="search" type="checkbox" checked> Allow brute force</label></div><button id="run-simulation" type="button">Run simulation</button></fieldset>`;
   if (!byDifficulty) {
-    const setDefaultCap = () => { get<HTMLInputElement>('#cap').value = mode() === 'sum' ? '15' : '9'; };
+    const setDefaultCap = () => { get<HTMLInputElement>('#cap').value = mode() === 'sum' ? '15' : mode() === 'pencilmark' ? '7' : '9'; };
     get('#lab-mode').addEventListener('change', setDefaultCap);
     setDefaultCap();
   }

@@ -15,7 +15,7 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
       <div class="generator-controls"><fieldset class="mode-toggle"><legend>Clue mode</legend><label><input type="radio" name="mode" value="sum" checked><span>Sum</span></label><label><input type="radio" name="mode" value="product"><span>Product</span></label><label><input type="radio" name="mode" value="pencilmark"><span>Pencilmark</span></label></fieldset><fieldset class="mode-toggle"><legend>Digging algorithm</legend><label><input type="radio" name="digging" value="single" checked><span>Single</span></label><label><input type="radio" name="digging" value="dual"><span>Dual</span></label></fieldset><label class="generation-search"><input id="allow-backtracking" type="checkbox" checked> Allow brute force</label><div class="generation-action"><button id="generate" class="generate"><span aria-hidden="true">↻</span> Generate</button><p>Generation time: <strong id="elapsed">—</strong></p></div></div>
     </section>
     <p id="mode-description" role="status"></p><section class="generation-summary" aria-label="Puzzle summary"><p id="dig-rating" role="status">Difficulty: —</p><p id="given-count" role="status">— givens</p></section>
-    <section class="dig-section" aria-label="Dug puzzle generation"><article class="board-panel"><div class="panel-heading"><div><span class="step">03 / DIGGING</span><h2>Dug puzzle</h2></div></div><div id="dug" class="grid clue-grid" role="table" aria-label="Dug puzzle"></div><p class="board-caption">Only confirmed clue removals are kept.</p></article><div class="dig-info"><p id="dig-status" role="status">Generate to begin digging.</p><p id="dig-outcome">Digging: not started</p><button id="copy-dug" disabled>Copy dug puzzle</button><p id="copy-status" role="status"></p><textarea id="copy-fallback" aria-label="Dug puzzle comma-separated clues" readonly hidden></textarea></div></section>
+    <section class="dig-section" aria-label="Dug puzzle generation"><article class="board-panel"><div class="panel-heading"><div><span class="step">03 / DIGGING</span><h2>Dug puzzle</h2></div></div><div id="dug" class="grid clue-grid" role="table" aria-label="Dug puzzle"></div></article><div class="dig-info"><p id="dig-status" role="status">Generate to begin digging.</p><p id="dig-outcome">Digging: not started</p><div class="dug-copy-actions"><button id="copy-dug" disabled>Copy dug puzzle</button><button id="copy-dug-image" disabled>Copy grid as image</button></div><p id="copy-status" role="status"></p><textarea id="copy-fallback" aria-label="Dug puzzle comma-separated clues" readonly hidden></textarea></div></section>
     <section id="walkthrough" class="walkthrough" aria-label="Solution walkthrough"></section>
     <section class="boards" aria-label="Sudoku generator">
       <article class="board-panel"><div class="panel-heading"><div><span class="step">01 / SOURCE</span><h2>Completed grid</h2></div><span class="pill">9 × 9</span></div><button id="copy-solution" class="copy-grid" disabled>Copy completed grid</button><button id="copy-solution-image" class="copy-grid" disabled>Copy grid as image</button><span id="copy-solution-status" role="status"></span><button type="button" class="walk-button grid-toggle" aria-controls="solution" aria-expanded="false">Expand grid</button><div id="solution" hidden class="grid" role="table" aria-label="Completed Sudoku grid"></div><p class="board-caption"><span class="caption-line"></span> Every row, column and box contains 1–9.</p></article>
@@ -41,7 +41,7 @@ const walkthrough = mountWalkthrough(document.querySelector('#walkthrough')!, ra
   document.querySelector('#dig-rating')!.textContent = rating.complete
     ? 'Difficulty: ' + rating.level + ' · ' + rating.score + ' points'
     : 'Difficulty: not fully rated · subtotal ' + rating.score + ' points';
-});
+}, { showPolicyNote: false });
 
 function renderGrid(element: HTMLDivElement, isClue: boolean, clues = puzzle?.clues as readonly (number | null)[] | undefined): void {
   element.replaceChildren();
@@ -151,6 +151,7 @@ function startDigging(initial?: IntersectionPuzzle): void {
     document.querySelector('#copy-' + id + '-status')!.textContent = '';
   }
   document.querySelector<HTMLButtonElement>('#copy-dug')!.disabled = true;
+  document.querySelector<HTMLButtonElement>('#copy-dug-image')!.disabled = true;
   document.querySelector('#copy-status')!.textContent = '';
   document.querySelector<HTMLTextAreaElement>('#copy-fallback')!.hidden = true;
   renderGrid(dugElement, true, Array(81).fill(null));
@@ -204,6 +205,7 @@ function startDigging(initial?: IntersectionPuzzle): void {
       puzzle = data.result;
       dugClues = data.result.dugClues;
       document.querySelector<HTMLButtonElement>('#copy-dug')!.disabled = false;
+      document.querySelector<HTMLButtonElement>('#copy-dug-image')!.disabled = false;
       renderGrid(dugElement, true, dugClues);
       document.querySelector('#given-count')!.textContent = `${dugClues.filter(clue => clue !== null).length} givens`;
       document.querySelector('#dig-status')!.textContent = `Complete · unique solution · ${allowBacktracking ? 'brute force allowed' : 'solvable without brute force'} · ${data.result.attempts} attempt(s)`;
@@ -226,6 +228,7 @@ document.querySelector<HTMLButtonElement>('#generate')!.addEventListener('click'
   if (dugClues) {
     renderGrid(dugElement, true, dugClues);
     document.querySelector<HTMLButtonElement>('#copy-dug')!.disabled = false;
+      document.querySelector<HTMLButtonElement>('#copy-dug-image')!.disabled = false;
     document.querySelector('#dig-rating')!.textContent = 'Difficulty: calculating…';
     walkthrough.load(dugClues, mode, allowBacktracking, puzzle?.solution);
   } else document.querySelector('#dig-rating')!.textContent = 'Difficulty: unavailable (no puzzle generated)';
@@ -275,12 +278,14 @@ document.querySelectorAll<HTMLButtonElement>('.grid-toggle').forEach(button => {
   });
 });
 
-for (const id of ['solution', 'transformed']) {
+for (const id of ['solution', 'transformed', 'dug']) {
   document.querySelector<HTMLButtonElement>('#copy-' + id + '-image')!.addEventListener('click', async () => {
     if (!puzzle) return;
     const source = puzzle, sourceMode = mode;
-    const status = document.querySelector('#copy-' + id + '-status')!;
-    const canvas = gridImage(id === 'solution' ? puzzle.solution : puzzle.clues, id !== 'solution');
+    const status = document.querySelector(id === 'dug' ? '#copy-status' : '#copy-' + id + '-status')!;
+    const values = id === 'dug' ? dugClues : id === 'solution' ? puzzle.solution : puzzle.clues;
+    if (!values) return;
+    const canvas = gridImage(values, id !== 'solution');
     try {
       await navigator.clipboard.write([new ClipboardItem({ 'image/png': imageBlob(canvas) })]);
       if (source === puzzle && sourceMode === mode) status.textContent = 'Grid image copied.';
