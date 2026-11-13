@@ -19,6 +19,8 @@ export const PRODUCT_LOCK_NAME = 'Locked candidates (Intersection products)';
 export const PRODUCT_LOCK_SCORE = 50;
 export const SUM_LOCK_NAME = 'Locked candidates (Intersection sums)';
 export const SUM_LOCK_SCORE = 50;
+export const PENCILMARK_LOCK_NAME = 'Locked candidates (Intersection pencilmarks)';
+export const PENCILMARK_LOCK_SCORE = 50;
 /** Shared source for the displayed repertoire and score lookup. */
 export const ACTIVE_TECHNIQUES = [
   { name: 'Intersection sum', score: 10 },
@@ -27,6 +29,7 @@ export const ACTIVE_TECHNIQUES = [
   { name: 'Combined sum equations', score: 10 },
   { name: PRODUCT_LOCK_NAME, score: PRODUCT_LOCK_SCORE },
   { name: SUM_LOCK_NAME, score: SUM_LOCK_SCORE },
+  { name: PENCILMARK_LOCK_NAME, score: PENCILMARK_LOCK_SCORE },
   ...ACTIVE_LOGICAL_ORDER.map(tech => TECHS[tech]),
   { name: BRUTE_FORCE_NAME, score: BRUTE_FORCE_SCORE },
 ];

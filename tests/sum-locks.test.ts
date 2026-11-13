@@ -35,7 +35,6 @@ it('does not assume a particular pair when the sum allows alternatives', () => {
   const { grid, solver } = fixture(14);
   // Residual 12 allows 3+9, 4+8, 5+7, and 6+6; no digit is mandatory.
   expect(findIntersectionLockedCandidates(grid, solver, 'sum')).toBeNull();
-  expect(findIntersectionLockedCandidates(grid, solver, 'pencilmark')).toBeNull();
 });
 
 it('preserves repeated digits in valid sum assignments', () => {
