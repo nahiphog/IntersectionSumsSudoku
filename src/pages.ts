@@ -1,5 +1,5 @@
 import { gridImage, imageBlob } from './gridImage';
-import { ACTIVE_LOGICAL_ORDER, BRUTE_FORCE_NAME, BRUTE_FORCE_SCORE } from './techniquePolicy';
+import { ACTIVE_LOGICAL_ORDER, BRUTE_FORCE_NAME, BRUTE_FORCE_SCORE, PRODUCT_LOCK_NAME, PRODUCT_LOCK_SCORE } from './techniquePolicy';
 import './style.css';
 import { mountNavigation } from './navigation';
 import { mountWalkthrough } from './walkthrough';
@@ -250,6 +250,7 @@ if (page === 'verify') {
   status.hidden = true;
   const catalogue = [
     {name:'Intersection sum',score:10}, {name:'Intersection product',score:10}, {name:'Intersection pencilmarks',score:10}, {name:'Combined sum equations',score:10},
+    {name:PRODUCT_LOCK_NAME,score:PRODUCT_LOCK_SCORE},
     ...ACTIVE_LOGICAL_ORDER.map(t => TECHS[t]), {name:BRUTE_FORCE_NAME,score:BRUTE_FORCE_SCORE},
   ].filter(info => info.score === null || info.score < 400 || info.score > 800)
     .sort((a,b) => (a.score ?? Infinity) - (b.score ?? Infinity) || a.name.localeCompare(b.name));

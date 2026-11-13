@@ -13,4 +13,6 @@ export const ACTIVE_LOGICAL_ORDER = SOLVE_ORDER.filter(tech =>
   && (tech === 'REMOTE_PAIR' || !DISABLED_FAMILIES.has(TECHS[tech].category)));
 export const BRUTE_FORCE_NAME = 'Brute force';
 export const BRUTE_FORCE_SCORE = 10000;
+export const PRODUCT_LOCK_NAME = 'Locked candidates (Intersection products)';
+export const PRODUCT_LOCK_SCORE = 50;
 export const POLICY_NOTE = 'Temporarily disabled: Uniqueness, Colouring, Chains & loops (except Remote Pair), ALS, Finned Fish, Complex fish, Miscellaneous, Turbot Fish, Cell Forcing Chain, Digit Forcing Chain, Nishio Forcing Chain, and Pattern Overlay.';

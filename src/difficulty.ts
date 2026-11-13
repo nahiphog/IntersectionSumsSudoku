@@ -1,13 +1,13 @@
 import { LEVELS, LEVEL_MAX_SCORE, TECHS } from './vendor/sudokui/engine/ratings';
 import type { ExplainedStep, Walkthrough } from './walkthroughSolver';
-import { BRUTE_FORCE_SCORE } from './techniquePolicy';
+import { BRUTE_FORCE_SCORE, PRODUCT_LOCK_NAME, PRODUCT_LOCK_SCORE } from './techniquePolicy';
 
 type RatedStep = Pick<ExplainedStep, 'kind' | 'technique'>;
 const catalogue = new Map(Object.values(TECHS).map(info => [info.name, info]));
 
 export function stepScore(step: RatedStep): number | null {
   if (step.kind === 'search') return BRUTE_FORCE_SCORE;
-  if (step.kind === 'constraint') return 10;
+  if (step.kind === 'constraint') return step.technique === PRODUCT_LOCK_NAME ? PRODUCT_LOCK_SCORE : 10;
   return catalogue.get(step.technique)?.score ?? null;
 }
 
