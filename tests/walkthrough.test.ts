@@ -4,7 +4,7 @@ import { generatePuzzle, intersectionClues, type ClueMode } from '../src/puzzle'
 
 import { VariantSolver } from '../src/variantSolver';
 import { emptyGrid, bit, UNITS } from '../src/vendor/sudokui/engine/board';
-import { ACTIVE_LOGICAL_ORDER } from '../src/techniquePolicy';
+import { ACTIVE_LOGICAL_ORDER, SUM_LOCK_NAME } from '../src/techniquePolicy';
 import { TECHS } from '../src/vendor/sudokui/engine/ratings';
 
 function random() { let state = 42; return () => { state = (Math.imul(state, 1664525) + 1013904223) >>> 0; return state / 4294967296; }; }
@@ -85,9 +85,10 @@ it('streams sound steps and uses a shared completion only for explicit brute-for
     expect(search).not.toHaveBeenCalled();
     const logical = solveWalkthrough(sparseSum, 'sum', { allowSearch: false, completion: sparseSolution });
     expect(logical.status).toBe('stalled');
-    expect(logical.steps).toHaveLength(3);
+    expect(logical.steps.length).toBeGreaterThan(3);
+    expect(logical.steps.some(step => step.technique === SUM_LOCK_NAME)).toBe(true);
     expect(logical.searchSteps).toBe(0);
-    expect(result.steps.slice(0,3)).toEqual(logical.steps);
+    expect(result.steps.slice(0, logical.steps.length)).toEqual(logical.steps);
     expect(() => solveWalkthrough(sparseSum, 'sum', { completion: Array(81).fill(1) })).toThrow('Invalid shared completion');
   } finally { search.mockRestore(); }
 }, 60000);

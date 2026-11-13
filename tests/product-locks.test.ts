@@ -4,7 +4,7 @@ import { parseClues } from '../src/lab';
 import { findProductLockedCandidates } from '../src/productLocks';
 import { VariantSolver } from '../src/variantSolver';
 import { bit, emptyGrid, setValue } from '../src/vendor/sudokui/engine/board';
-import { PRODUCT_LOCK_NAME } from '../src/techniquePolicy';
+import { ACTIVE_TECHNIQUES, PRODUCT_LOCK_NAME } from '../src/techniquePolicy';
 import { rateWalkthrough, stepScore } from '../src/difficulty';
 import { tallySteps } from '../src/tally';
 
@@ -13,6 +13,8 @@ const puzzle = '0,0,0,0,0,0,0,135,0,0,0,0,2520,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,8
 it('uses product locks before resorting to search on the supplied puzzle', () => {
   const clues = parseClues(puzzle, 'product');
   const walk = solveWalkthrough(clues, 'product');
+  for (const step of walk.steps) expect(ACTIVE_TECHNIQUES.map(info => info.name)).toContain(step.technique);
+  expect(walk.steps.some(step => step.technique === 'Forcing Net')).toBe(false);
   const lock = walk.steps.find(step => step.technique === PRODUCT_LOCK_NAME && step.clueCell === 59)!;
   expect(lock).toBeDefined();
   expect(lock.description).toContain('27 ÷ 1 ÷ 1 = 27');

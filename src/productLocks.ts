@@ -1,54 +1,8 @@
-import { bit, cellName, digitsOf, sees, type Grid } from './vendor/sudokui/engine/board';
+import { findIntersectionLockedCandidates } from './intersectionLocks';
+import type { Grid } from './vendor/sudokui/engine/board';
 import type { VariantSolver } from './variantSolver';
-import type { ExplainedStep } from './walkthroughSolver';
 import type { ClueMode } from './puzzle';
-import { PRODUCT_LOCK_NAME } from './techniquePolicy';
 
-/** A mandatory digit in a clue's unresolved neighbours excludes that digit
- * from any outside cell seeing every possible location, even across units. */
-export function findProductLockedCandidates(grid: Grid, solver: VariantSolver, mode: ClueMode):
-  Omit<ExplainedStep, 'before' | 'after' | 'peerEliminations'> | null {
-  if (mode !== 'product') return null;
-  const domains = Uint16Array.from(grid.cands, (mask, cell) => grid.values[cell] ? bit(grid.values[cell]) : mask);
-  for (const { cell, neighbours, tuples } of solver.clueOptions()) {
-    const allowed = tuples.filter(tuple => tuple.every((mask, j) => domains[neighbours[j]] & mask));
-    if (!allowed.length) throw new Error(`The product clue at ${cellName(cell)} has no valid combination.`);
-    const remaining = neighbours.flatMap((neighbour, j) => grid.values[neighbour] ? [] : [j]);
-    if (!remaining.length) continue;
-    // Intersection of the digits present in EVERY possible assignment, not
-    // just the union of candidates or a single convenient factorisation.
-    const mandatory = allowed.reduce((mask, tuple) =>
-      mask & remaining.reduce((digits, j) => digits | tuple[j], 0), 511);
-    const eliminations: { cell: number; digit: number }[] = [];
-    const reasons: string[] = [];
-    for (const digit of digitsOf(mandatory)) {
-      const locations = remaining.filter(j => allowed.some(tuple => tuple[j] & bit(digit))).map(j => neighbours[j]);
-      const targets = Array.from({ length: 81 }, (_, c) => c).filter(c =>
-        !grid.values[c] && !neighbours.includes(c) && (grid.cands[c] & bit(digit))
-        && locations.every(location => sees(c, location)));
-      if (!targets.length) continue;
-      eliminations.push(...targets.map(cell => ({ cell, digit })));
-      reasons.push(`${digit} must occur in ${locations.map(c => cellName(c).toUpperCase()).join(' or ')}. `
-        + `Remove ${digit} from ${targets.map(c => cellName(c).toUpperCase()).join(', ')}: each of these cells sees every possible location.`);
-    }
-    if (!eliminations.length) continue;
-    const target = allowed[0].reduce((product, mask) => product * digitsOf(mask)[0], 1);
-    const fixed = neighbours.filter(c => grid.values[c]);
-    const residual = target / fixed.reduce((product, c) => product * grid.values[c], 1);
-    const groups = [...new Set(allowed.map(tuple => remaining.map(j => digitsOf(tuple[j])[0]).sort((a,b) => a-b).join(', ')))];
-    const reduction = fixed.length
-      ? `${fixed.map(c => `${cellName(c).toUpperCase()} = ${grid.values[c]}`).join(', ')}; ${target}${fixed.map(c => ` ÷ ${grid.values[c]}`).join('')} = ${residual}. ` : '';
-    const factors = groups.length === 1
-      ? `The remaining neighbours contain ${groups[0]} in some order. `
-      : `Every valid assignment of the remaining neighbours has product ${residual}. `;
-    return {
-      technique: PRODUCT_LOCK_NAME, kind: 'constraint',
-      description: `Product clue ${target} at ${cellName(cell).toUpperCase()}: ${reduction}${factors}${reasons.join(' ')}`,
-      placements: [], eliminations,
-      related: [...new Set([cell, ...neighbours, ...eliminations.map(e => e.cell)])], clueCell: cell,
-      neighbourOrder: neighbours, combinationCount: allowed.length,
-      combinations: allowed.slice(0, 12).map(tuple => tuple.map(mask => digitsOf(mask)[0])),
-    };
-  }
-  return null;
+export function findProductLockedCandidates(grid: Grid, solver: VariantSolver, mode: ClueMode) {
+  return mode === 'product' ? findIntersectionLockedCandidates(grid, solver, mode) : null;
 }

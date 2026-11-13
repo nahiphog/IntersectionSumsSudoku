@@ -1,5 +1,5 @@
 import { gridImage, imageBlob } from './gridImage';
-import { ACTIVE_LOGICAL_ORDER, BRUTE_FORCE_NAME, BRUTE_FORCE_SCORE, PRODUCT_LOCK_NAME, PRODUCT_LOCK_SCORE } from './techniquePolicy';
+import { ACTIVE_TECHNIQUES } from './techniquePolicy';
 import './style.css';
 import { mountNavigation } from './navigation';
 import { mountWalkthrough } from './walkthrough';
@@ -7,7 +7,6 @@ import { parseClues } from './lab';
 import { bindPuzzleString } from './verifyInput';
 import { readVerifyLink, verifyLink } from './verifyLink';
 import { PENCILMARK_DESCRIPTION, serializeClues, serializeSolution, type ClueMode } from './puzzle';
-import { TECHS } from './vendor/sudokui/engine/ratings';
 import { saveTally } from './tally';
 import { rateWalkthrough } from './difficulty';
 import type { Walkthrough } from './walkthroughSolver';
@@ -248,11 +247,7 @@ if (page === 'verify') {
   };
 } else {
   status.hidden = true;
-  const catalogue = [
-    {name:'Intersection sum',score:10}, {name:'Intersection product',score:10}, {name:'Intersection pencilmarks',score:10}, {name:'Combined sum equations',score:10},
-    {name:PRODUCT_LOCK_NAME,score:PRODUCT_LOCK_SCORE},
-    ...ACTIVE_LOGICAL_ORDER.map(t => TECHS[t]), {name:BRUTE_FORCE_NAME,score:BRUTE_FORCE_SCORE},
-  ].filter(info => info.score === null || info.score < 400 || info.score > 800)
+  const catalogue = [...ACTIVE_TECHNIQUES]
     .sort((a,b) => (a.score ?? Infinity) - (b.score ?? Infinity) || a.name.localeCompare(b.name));
   const table = document.createElement('table'); table.className = 'lab-table';
   table.innerHTML = '<thead><tr><th scope="col">Technique</th><th scope="col">Points</th></tr></thead>';
