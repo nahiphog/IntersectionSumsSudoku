@@ -8,6 +8,7 @@ import { ACTIVE_LOGICAL_ORDER, BRUTE_FORCE_NAME } from './techniquePolicy';
 import type { CellDigit, Step } from './vendor/sudokui/engine/steps';
 import { sumEquations, type SumEquation } from './sumEquations';
 import { findIntersectionLockedCandidates } from './intersectionLocks';
+import { findProductEquationStep } from './productEquations';
 
 export interface Snapshot { values: number[]; candidates: number[] }
 export interface ExplainedStep {
@@ -177,6 +178,7 @@ export function solveWalkthrough(clues: Clues, mode: ClueMode, options: {
     let step = classic ? fromSudoku(classic) : findConstraintStep(grid, solver, mode);
     if (!step) step = findIntersectionLockedCandidates(grid, solver, mode);
     if (!step) step = findSumEquationStep(grid, equations);
+    if (!step && mode === 'product') step = findProductEquationStep(grid, clues);
     if (!step) {
       for (const tech of order.slice(3)) {
         options.onProgress?.(stepCount, `Checking ${TECHS[tech].name}…`);

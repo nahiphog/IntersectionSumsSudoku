@@ -27,6 +27,7 @@ export const ACTIVE_TECHNIQUES = [
   { name: 'Intersection product', score: 10 },
   { name: 'Intersection pencilmarks', score: 10 },
   { name: 'Combined sum equations', score: 10 },
+  { name: 'Combined product equations', score: 10 },
   { name: PRODUCT_LOCK_NAME, score: PRODUCT_LOCK_SCORE },
   { name: SUM_LOCK_NAME, score: SUM_LOCK_SCORE },
   { name: PENCILMARK_LOCK_NAME, score: PENCILMARK_LOCK_SCORE },
